@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Demineur cooperatif</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <canvas id="gameCanvas"></canvas>
+
+  <div id="hud" class="panel hidden">
+    <div class="hud-top">
+      <div id="hudBombs">Bombes: 0/10</div>
+      <div id="hudTime">00:00</div>
+      <div id="hudPlayers">0 joueurs</div>
+    </div>
+    <div class="hud-bottom">
+      <div id="hudFlags">Drapeaux: 0</div>
+      <div id="hudRevealed">Cases revelees: 0/0</div>
+    </div>
+  </div>
+
+  <div id="lobby" class="overlay">
+    <div class="card">
+      <h1>Demineur cooperatif</h1>
+      <p>Choisis ton pseudo pour rejoindre la partie.</p>
+      <form id="joinForm" autocomplete="off">
+        <input id="pseudoInput" type="text" maxlength="20" placeholder="Pseudo" required>
+        <button type="submit">Rejoindre</button>
+      </form>
+      <p id="joinError" class="error"></p>
+      <p class="hint">Deplacement: ZQSD ou fleches. Espace: creuser. Shift: drapeau.</p>
+    </div>
+  </div>
+
+  <div id="reconnect" class="overlay hidden">
+    <div class="card compact">
+      <h2>Reconnexion...</h2>
+      <p>Tentative de reconnexion au serveur.</p>
+    </div>
+  </div>
+
+  <div id="statsOverlay" class="overlay hidden">
+    <div class="stats-card">
+      <h2 id="statsTitle">Fin de partie</h2>
+      <p id="statsDuration"></p>
+      <canvas id="statsMiniMap" width="420" height="420"></canvas>
+
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Pseudo</th>
+            <th>Cases revelees</th>
+            <th>Bombes declenchees</th>
+            <th>Drapeaux ✓/✗</th>
+          </tr>
+        </thead>
+        <tbody id="statsTableBody"></tbody>
+      </table>
+
+      <div class="explosions">
+        <h3>Explosions</h3>
+        <ul id="explosionList"></ul>
+      </div>
+
+      <p id="statsCountdown">Nouvelle partie dans: 60s</p>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/client.js"></script>
+</body>
+</html>
