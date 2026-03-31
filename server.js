@@ -90,6 +90,7 @@ io.on('connection', (socket) => {
     if (result.cells.length > 0) {
       io.emit('cells:revealed', {
         cells: result.cells,
+        playerId: result.playerId,
         triggeredBy: result.triggeredBy,
       });
     }

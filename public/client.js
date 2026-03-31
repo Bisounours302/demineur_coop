@@ -40,6 +40,9 @@ const PLAYER_COLORS = [
 
 const ANIMAL_FRAME = 32;
 const ANIMAL_COLS = 4;
+const DIG_FRAME_MS = 60;
+const DIG_FRAMES = 4;
+const DIG_LOOPS = 2;
 
 const EXPLOSION_FRAME_W = 64;
 const EXPLOSION_FRAME_H = 64;
@@ -174,10 +177,6 @@ function base64ToTypedArray(b64, TypedArray) {
     view[i] = bin.charCodeAt(i);
   }
   return new TypedArray(buffer);
-}
-
-function isStunned(playerLike) {
-  return playerLike && playerLike.stunnedUntil && Date.now() < playerLike.stunnedUntil;
 }
 
 function normalizeAvatarIndex(value) {
@@ -416,6 +415,14 @@ const assets = {
     loadImage('/assets/FOXSPRITESHEET.png'),
     loadImage('/assets/RACCOONSPRITESHEET.png'),
   ],
+  shovels: [
+    loadImage('/assets/shovel_bird_blue.png'),
+    loadImage('/assets/shovel_bird_white.png'),
+    loadImage('/assets/shovel_cat_gray.png'),
+    loadImage('/assets/shovel_cat_orange.png'),
+    loadImage('/assets/shovel_fox.png'),
+    loadImage('/assets/shovel_racoon.png'),
+  ],
   fx: {
     bomb: loadImage('/assets/bomb.png'),
     explosion: loadImage('/assets/explosion.png'),
@@ -460,11 +467,13 @@ const state = {
     y: 0,
     stunnedUntil: 0,
   },
-  cursorCell: null,
   moveQueue: [],
   lastMoveAt: 0,
   holdControls: new Map(),
   activeExplosions: [],
+  activeDigs: new Map(),
+  pendingRevealBatches: [],
+  digLockUntil: 0,
   explodedCells: new Set(),
   hasJoinedOnce: false,
   loopStarted: false,
@@ -535,8 +544,6 @@ function drawCell(x, y) {
 
   const value = state.grid[i];
   const hidden = value === -2;
-  const isBomb = state.map.bombs[i] === 1;
-  const inStats = state.phase === 'stats';
 
   if (hidden) {
     const { cols } = tileSheetInfo(assets.tiles.grass);
@@ -560,29 +567,6 @@ function drawCell(x, y) {
     ctx.strokeStyle = '#ff4444';
     ctx.lineWidth = 1;
     ctx.strokeRect(px + 1, py + 1, TILE_SIZE - 2, TILE_SIZE - 2);
-  }
-
-  if ((inStats && isBomb) || (!hidden && value === -1)) {
-    if (assets.fx.bomb.loaded) {
-      const bx = px + (TILE_SIZE - BOMB_DRAW_W) * 0.5;
-      const by = py + (TILE_SIZE - BOMB_DRAW_H) * 0.5;
-      ctx.drawImage(
-        assets.fx.bomb,
-        BOMB_SRC_X,
-        BOMB_SRC_Y,
-        BOMB_SRC_W,
-        BOMB_SRC_H,
-        bx,
-        by,
-        BOMB_DRAW_W,
-        BOMB_DRAW_H,
-      );
-    } else {
-      ctx.fillStyle = '#1a1a1a';
-      ctx.beginPath();
-      ctx.arc(px + 16, py + 16, 7, 0, Math.PI * 2);
-      ctx.fill();
-    }
   }
 }
 
@@ -792,6 +776,43 @@ function drawNumbers(minX, maxX, minY, maxY) {
   }
 }
 
+function drawBombs(minX, maxX, minY, maxY) {
+  const inStats = state.phase === 'stats';
+
+  for (let y = minY; y <= maxY; y++) {
+    for (let x = minX; x <= maxX; x++) {
+      const i = idx(x, y);
+      const hidden = state.grid[i] === -2;
+      const shouldDraw = (inStats && state.map.bombs[i] === 1) || (!hidden && state.grid[i] === -1);
+      if (!shouldDraw) continue;
+
+      const px = x * TILE_SIZE;
+      const py = y * TILE_SIZE;
+
+      if (assets.fx.bomb.loaded) {
+        const bx = px + (TILE_SIZE - BOMB_DRAW_W) * 0.5;
+        const by = py + (TILE_SIZE - BOMB_DRAW_H) * 0.5;
+        ctx.drawImage(
+          assets.fx.bomb,
+          BOMB_SRC_X,
+          BOMB_SRC_Y,
+          BOMB_SRC_W,
+          BOMB_SRC_H,
+          bx,
+          by,
+          BOMB_DRAW_W,
+          BOMB_DRAW_H,
+        );
+      } else {
+        ctx.fillStyle = '#1a1a1a';
+        ctx.beginPath();
+        ctx.arc(px + 16, py + 16, 7, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  }
+}
+
 function spriteDirection(dx, dy, previous = 'down') {
   if (Math.abs(dx) > Math.abs(dy)) {
     return dx < 0 ? 'left' : 'right';
@@ -808,6 +829,81 @@ function playerSheetForPlayer(player) {
 
   const fallback = hashPseudo(player.pseudo) % assets.sprites.length;
   return assets.sprites[fallback];
+}
+
+function shovelSheetForPlayer(player) {
+  if (Number.isInteger(player.avatar)) {
+    return assets.shovels[normalizeAvatarIndex(player.avatar)] || null;
+  }
+
+  const fallback = hashPseudo(player.pseudo) % assets.shovels.length;
+  return assets.shovels[fallback] || null;
+}
+
+function digDurationMs() {
+  return DIG_FRAME_MS * DIG_FRAMES * DIG_LOOPS;
+}
+
+function isDigLocked(now = Date.now()) {
+  return now < state.digLockUntil;
+}
+
+function lockDigFor(durationMs) {
+  if (durationMs <= 0) return;
+
+  const until = Date.now() + durationMs;
+  state.digLockUntil = Math.max(state.digLockUntil, until);
+  // Prevent queued movement from replaying when the lock ends.
+  state.moveQueue = [];
+  clearAllHoldMoves();
+}
+
+function playerHasLoadedDigAnimation(player) {
+  const sheet = shovelSheetForPlayer(player);
+  return Boolean(sheet && sheet.loaded);
+}
+
+function getDigFrame(playerId, now) {
+  const startedAt = state.activeDigs.get(playerId);
+  if (!startedAt) return null;
+
+  const elapsed = now - startedAt;
+  const totalFrames = DIG_FRAMES * DIG_LOOPS;
+  const frameIndex = Math.floor(elapsed / DIG_FRAME_MS);
+
+  if (frameIndex >= totalFrames) {
+    state.activeDigs.delete(playerId);
+    return null;
+  }
+
+  return frameIndex % DIG_FRAMES;
+}
+
+function applyRevealedCells(cells) {
+  for (const cell of cells || []) {
+    const i = idx(cell.x, cell.y);
+    if (state.grid[i] === -2 && cell.value >= 0) {
+      state.revealedSafeCount += 1;
+    }
+    state.grid[i] = cell.value;
+    state.flags.delete(i);
+    if (cell.value === -1) state.explodedCells.add(i);
+  }
+}
+
+function flushPendingReveals(now) {
+  if (!state.pendingRevealBatches.length) return;
+
+  const remaining = [];
+  for (const batch of state.pendingRevealBatches) {
+    if (batch.applyAt <= now) {
+      applyRevealedCells(batch.cells);
+    } else {
+      remaining.push(batch);
+    }
+  }
+
+  state.pendingRevealBatches = remaining;
 }
 
 function getSpriteFrame(player, now) {
@@ -846,7 +942,23 @@ function drawPlayer(player, now) {
   ctx.globalAlpha = blinkLow ? 0.35 : 1;
 
   const sheet = playerSheetForPlayer(player);
-  if (sheet.loaded) {
+  const digFrame = getDigFrame(player.id, now);
+  const shovelSheet = digFrame !== null ? shovelSheetForPlayer(player) : null;
+  const canDrawDig = shovelSheet && shovelSheet.loaded;
+
+  if (canDrawDig) {
+    ctx.drawImage(
+      shovelSheet,
+      digFrame * ANIMAL_FRAME,
+      0,
+      ANIMAL_FRAME,
+      ANIMAL_FRAME,
+      px,
+      py,
+      TILE_SIZE,
+      TILE_SIZE,
+    );
+  } else if (sheet.loaded) {
     const frame = getSpriteFrame(player, now);
     ctx.drawImage(
       sheet,
@@ -913,19 +1025,6 @@ function bucketExplosions(now) {
   return byCell;
 }
 
-function drawCursorHighlight() {
-  if (!state.cursorCell) return;
-
-  const x = state.cursorCell.x * TILE_SIZE;
-  const y = state.cursorCell.y * TILE_SIZE;
-
-  ctx.fillStyle = 'rgba(90, 180, 255, 0.14)';
-  ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
-  ctx.strokeStyle = 'rgba(120, 220, 255, 0.85)';
-  ctx.lineWidth = 2;
-  ctx.strokeRect(x + 1, y + 1, TILE_SIZE - 2, TILE_SIZE - 2);
-}
-
 function renderFrame() {
   const scale = state.camera.scale;
   const now = Date.now();
@@ -954,6 +1053,7 @@ function renderFrame() {
   }
 
   drawTransitions(minX, maxX, minY, maxY);
+  drawBombs(minX, maxX, minY, maxY);
   drawNumbers(minX, maxX, minY, maxY);
   drawFlags(minX, maxX, minY, maxY);
 
@@ -973,8 +1073,6 @@ function renderFrame() {
       drawExplosionAtCell(x, y, frame);
     }
   }
-
-  drawCursorHighlight();
 
   ctx.font = '10px monospace';
   ctx.textAlign = 'center';
@@ -1069,6 +1167,7 @@ function updateHud() {
   const flagsCount = state.flags.size;
   const elapsed = state.startTime ? Date.now() - state.startTime : 0;
   const safeTotal = Math.max(0, state.map.totalCells - state.map.bombCount);
+  const nearTop = state.me.y <= 3;
 
   hudBombsEl.textContent = `Bombes: ${state.explosions}/${state.maxExplosions}`;
   hudBombsEl.classList.toggle('bombs-danger', state.explosions >= 7);
@@ -1076,6 +1175,7 @@ function updateHud() {
   hudPlayersEl.textContent = `${playerCount} joueurs`;
   hudFlagsEl.textContent = `Drapeaux: ${flagsCount}`;
   hudRevealedEl.textContent = `Cases revelees: ${state.revealedSafeCount}/${safeTotal}`;
+  hudEl.classList.toggle('near-top', nearTop);
 }
 
 function clearStatsCountdownTimer() {
@@ -1263,6 +1363,9 @@ function applySnapshot(payload) {
   state.revealedSafeCount = 0;
   state.explodedCells = new Set();
   state.activeExplosions = [];
+  state.activeDigs = new Map();
+  state.pendingRevealBatches = [];
+  state.digLockUntil = 0;
 
   for (const cell of payload.revealed || []) {
     const i = idx(cell.x, cell.y);
@@ -1300,45 +1403,41 @@ function applySnapshot(payload) {
   }
 }
 
-function updateCursorCell(clientX, clientY) {
-  const rect = canvas.getBoundingClientRect();
-  const sx = clientX - rect.left;
-  const sy = clientY - rect.top;
-
-  const worldX = state.camera.x + sx / state.camera.scale;
-  const worldY = state.camera.y + sy / state.camera.scale;
-
-  const x = Math.floor(worldX / TILE_SIZE);
-  const y = Math.floor(worldY / TILE_SIZE);
-  state.cursorCell = isInBounds(x, y) ? { x, y } : null;
-}
-
 function getActionTargetCell() {
   const me = state.players.get(state.myId);
   if (!me) return { x: state.me.x, y: state.me.y };
-
-  if (state.cursorCell) {
-    const dx = Math.abs(state.cursorCell.x - me.x);
-    const dy = Math.abs(state.cursorCell.y - me.y);
-    if (dx <= 1 && dy <= 1) return state.cursorCell;
-  }
 
   return { x: me.x, y: me.y };
 }
 
 function emitCellAction(eventName) {
-  if (state.phase !== 'playing' || state.chat.open || isStunned(state.me)) return;
+  if (state.phase !== 'playing' || state.chat.open || isDigLocked()) return;
+
+  if (eventName === 'cell:reveal') {
+    const target = getActionTargetCell();
+    const i = idx(target.x, target.y);
+    const me = state.players.get(state.myId);
+    const canAnimateDig = Boolean(me && playerHasLoadedDigAnimation(me));
+    const shouldLock = canAnimateDig && !state.flags.has(i) && state.grid[i] === -2;
+    if (shouldLock) {
+      lockDigFor(digDurationMs());
+    }
+  }
+
   socket.emit(eventName, getActionTargetCell());
 }
 
 function processInputQueue() {
   if (state.phase !== 'playing') return;
   if (state.chat.open) return;
+  if (isDigLocked()) {
+    state.moveQueue = [];
+    return;
+  }
   if (state.moveQueue.length === 0) return;
 
   const now = Date.now();
   if (now - state.lastMoveAt < MOVE_COOLDOWN_MS) return;
-  if (isStunned(state.me)) return;
 
   const action = state.moveQueue.shift();
   if (!action) return;
@@ -1363,6 +1462,7 @@ function processInputQueue() {
 }
 
 function enqueueMove(dx, dy) {
+  if (isDigLocked()) return;
   state.moveQueue.push({ dx, dy });
 }
 
@@ -1416,6 +1516,8 @@ function startGameLoop() {
   state.loopStarted = true;
 
   function tick() {
+    const now = Date.now();
+    flushPendingReveals(now);
     updateCamera();
     processInputQueue();
     renderFrame();
@@ -1497,8 +1599,6 @@ window.addEventListener('mouseup', () => {
 });
 
 window.addEventListener('mousemove', (event) => {
-  updateCursorCell(event.clientX, event.clientY);
-
   if (!state.camera.dragging) return;
   const dx = event.clientX - state.camera.dragLastX;
   const dy = event.clientY - state.camera.dragLastY;
@@ -1551,6 +1651,14 @@ window.addEventListener('keydown', (event) => {
       chatInputEl?.focus();
     }
 
+    return;
+  }
+
+  if (isDigLocked()) {
+    const delta = MOVE_KEY_DELTAS[event.code];
+    if (delta || event.code === 'Space' || event.code === 'ShiftLeft' || event.code === 'ShiftRight') {
+      event.preventDefault();
+    }
     return;
   }
 
@@ -1611,6 +1719,8 @@ socket.on('player:joined', (payload) => {
 });
 
 socket.on('player:left', (payload) => {
+  state.activeDigs.delete(payload.id);
+  state.pendingRevealBatches = state.pendingRevealBatches.filter((batch) => batch.playerId !== payload.id);
   state.players.delete(payload.id);
 });
 
@@ -1629,15 +1739,27 @@ socket.on('player:moved', (payload) => {
 });
 
 socket.on('cells:revealed', (payload) => {
-  for (const cell of payload.cells || []) {
-    const i = idx(cell.x, cell.y);
-    if (state.grid[i] === -2 && cell.value >= 0) {
-      state.revealedSafeCount += 1;
+  const now = Date.now();
+  const playerId = payload?.playerId;
+  const player = playerId ? state.players.get(playerId) : null;
+  const hasDigAnimation = Boolean(player && playerHasLoadedDigAnimation(player));
+
+  if (playerId && hasDigAnimation) {
+    const delay = digDurationMs();
+    state.activeDigs.set(playerId, now);
+    state.pendingRevealBatches.push({
+      applyAt: now + delay,
+      cells: payload.cells || [],
+      playerId,
+    });
+
+    if (playerId === state.myId) {
+      lockDigFor(delay);
     }
-    state.grid[i] = cell.value;
-    state.flags.delete(i);
-    if (cell.value === -1) state.explodedCells.add(i);
+    return;
   }
+
+  applyRevealedCells(payload.cells || []);
 });
 
 socket.on('cell:flagged', (payload) => {

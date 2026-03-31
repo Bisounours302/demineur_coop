@@ -7,7 +7,7 @@ const {
   TOTAL_CELLS,
 } = require('./generator');
 
-const MAX_PLAYERS = 10;
+const MAX_PLAYERS = 20;
 const MAX_EXPLOSIONS = 10;
 const STUN_DURATION_MS = 2000;
 const STATS_DURATION_MS = 60_000;
@@ -520,9 +520,6 @@ function validateAction(socketId, x, y, distanceError = 'Case hors rayon d actio
   }
 
   refreshStun(player);
-  if (player.stunned) {
-    return { ok: false, error: 'Joueur étourdi.' };
-  }
 
   if (!Number.isInteger(x) || !Number.isInteger(y) || !isInBounds(x, y)) {
     return { ok: false, error: 'Coordonnées invalides.' };
@@ -622,7 +619,13 @@ function revealCell(socketId, x, y) {
   const { player } = validated;
   const i = idx(x, y);
   if (state.revealed.has(i)) {
-    return { ok: true, cells: [], bomb: false, triggeredBy: player.pseudo };
+    return {
+      ok: true,
+      cells: [],
+      bomb: false,
+      triggeredBy: player.pseudo,
+      playerId: player.id,
+    };
   }
 
   if (state.flagged.has(i)) {
@@ -666,6 +669,7 @@ function revealCell(socketId, x, y) {
     bomb: false,
     cells,
     triggeredBy: player.pseudo,
+    playerId: player.id,
     gameOver: checkWinCondition() ? 'win' : null,
   };
 }

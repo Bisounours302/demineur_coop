@@ -38,6 +38,12 @@ canvas#gameCanvas {
   border-radius: 10px;
   padding: 10px 14px;
   backdrop-filter: blur(3px);
+  transition: background 140ms ease, border-color 140ms ease;
+}
+
+.panel.near-top {
+  background: rgba(6, 10, 20, 0.1);
+  border-color: rgba(255, 255, 255, 0.18);
 }
 
 .chat-dock {
@@ -134,6 +140,11 @@ canvas#gameCanvas {
   justify-content: space-between;
   gap: 10px;
   font-size: 14px;
+  transition: opacity 140ms ease;
+}
+
+.panel.near-top .hud-top {
+  opacity: 0.2;
 }
 
 .hud-bottom {
