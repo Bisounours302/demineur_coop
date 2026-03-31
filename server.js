@@ -91,7 +91,6 @@ io.on('connection', (socket) => {
       io.emit('cells:revealed', {
         cells: result.cells,
         playerId: result.playerId,
-        triggeredBy: result.triggeredBy,
       });
     }
 

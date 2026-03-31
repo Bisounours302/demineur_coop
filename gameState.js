@@ -623,7 +623,6 @@ function revealCell(socketId, x, y) {
       ok: true,
       cells: [],
       bomb: false,
-      triggeredBy: player.pseudo,
       playerId: player.id,
     };
   }
@@ -668,7 +667,6 @@ function revealCell(socketId, x, y) {
     ok: true,
     bomb: false,
     cells,
-    triggeredBy: player.pseudo,
     playerId: player.id,
     gameOver: checkWinCondition() ? 'win' : null,
   };

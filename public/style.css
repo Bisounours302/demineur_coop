@@ -130,10 +130,6 @@ canvas#gameCanvas {
   cursor: pointer;
 }
 
-.chat-dock.open {
-  background: rgba(6, 10, 20, 0.1);
-}
-
 .hud-top,
 .hud-bottom {
   display: flex;

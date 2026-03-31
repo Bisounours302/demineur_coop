@@ -465,7 +465,6 @@ const state = {
   me: {
     x: 0,
     y: 0,
-    stunnedUntil: 0,
   },
   moveQueue: [],
   lastMoveAt: 0,
@@ -473,7 +472,6 @@ const state = {
   activeExplosions: [],
   activeDigs: new Map(),
   pendingRevealBatches: [],
-  digLockUntil: 0,
   explodedCells: new Set(),
   hasJoinedOnce: false,
   loopStarted: false,
@@ -842,20 +840,6 @@ function shovelSheetForPlayer(player) {
 
 function digDurationMs() {
   return DIG_FRAME_MS * DIG_FRAMES * DIG_LOOPS;
-}
-
-function isDigLocked(now = Date.now()) {
-  return now < state.digLockUntil;
-}
-
-function lockDigFor(durationMs) {
-  if (durationMs <= 0) return;
-
-  const until = Date.now() + durationMs;
-  state.digLockUntil = Math.max(state.digLockUntil, until);
-  // Prevent queued movement from replaying when the lock ends.
-  state.moveQueue = [];
-  clearAllHoldMoves();
 }
 
 function playerHasLoadedDigAnimation(player) {
@@ -1334,7 +1318,6 @@ function applyPlayerPayload(payload) {
     updateColorSelectionUI();
     state.me.x = player.x;
     state.me.y = player.y;
-    state.me.stunnedUntil = player.stunnedUntil;
   }
 }
 
@@ -1365,7 +1348,6 @@ function applySnapshot(payload) {
   state.activeExplosions = [];
   state.activeDigs = new Map();
   state.pendingRevealBatches = [];
-  state.digLockUntil = 0;
 
   for (const cell of payload.revealed || []) {
     const i = idx(cell.x, cell.y);
@@ -1388,7 +1370,6 @@ function applySnapshot(payload) {
   if (me) {
     state.me.x = me.x;
     state.me.y = me.y;
-    state.me.stunnedUntil = me.stunnedUntil || 0;
   }
 
   lobbyEl.classList.add('hidden');
@@ -1410,30 +1391,31 @@ function getActionTargetCell() {
   return { x: me.x, y: me.y };
 }
 
-function emitCellAction(eventName) {
-  if (state.phase !== 'playing' || state.chat.open || isDigLocked()) return;
+function cellFromPointer(clientX, clientY) {
+  const rect = canvas.getBoundingClientRect();
+  const sx = clientX - rect.left;
+  const sy = clientY - rect.top;
 
-  if (eventName === 'cell:reveal') {
-    const target = getActionTargetCell();
-    const i = idx(target.x, target.y);
-    const me = state.players.get(state.myId);
-    const canAnimateDig = Boolean(me && playerHasLoadedDigAnimation(me));
-    const shouldLock = canAnimateDig && !state.flags.has(i) && state.grid[i] === -2;
-    if (shouldLock) {
-      lockDigFor(digDurationMs());
-    }
-  }
+  const worldX = state.camera.x + sx / state.camera.scale;
+  const worldY = state.camera.y + sy / state.camera.scale;
 
-  socket.emit(eventName, getActionTargetCell());
+  const x = Math.floor(worldX / TILE_SIZE);
+  const y = Math.floor(worldY / TILE_SIZE);
+  if (!isInBounds(x, y)) return null;
+
+  return { x, y };
+}
+
+function emitCellAction(eventName, target = null) {
+  if (state.phase !== 'playing' || state.chat.open) return;
+  const actionTarget = target || getActionTargetCell();
+  if (!actionTarget) return;
+  socket.emit(eventName, actionTarget);
 }
 
 function processInputQueue() {
   if (state.phase !== 'playing') return;
   if (state.chat.open) return;
-  if (isDigLocked()) {
-    state.moveQueue = [];
-    return;
-  }
   if (state.moveQueue.length === 0) return;
 
   const now = Date.now();
@@ -1462,7 +1444,6 @@ function processInputQueue() {
 }
 
 function enqueueMove(dx, dy) {
-  if (isDigLocked()) return;
   state.moveQueue.push({ dx, dy });
 }
 
@@ -1587,11 +1568,34 @@ window.addEventListener('blur', clearAllHoldMoves);
 
 canvas.addEventListener('mousedown', (event) => {
   if (state.chat.open) return;
-  if (event.button !== 0) return;
+
+  if (event.button === 0) {
+    event.preventDefault();
+    const target = cellFromPointer(event.clientX, event.clientY);
+    if (target) {
+      emitCellAction('cell:reveal', target);
+    }
+    return;
+  }
+
+  if (event.button === 2) {
+    event.preventDefault();
+    const target = cellFromPointer(event.clientX, event.clientY);
+    if (target) {
+      emitCellAction('cell:flag', target);
+    }
+    return;
+  }
+
+  if (event.button !== 1) return;
   state.camera.dragging = true;
   state.camera.isManual = true;
   state.camera.dragLastX = event.clientX;
   state.camera.dragLastY = event.clientY;
+});
+
+canvas.addEventListener('contextmenu', (event) => {
+  event.preventDefault();
 });
 
 window.addEventListener('mouseup', () => {
@@ -1651,14 +1655,6 @@ window.addEventListener('keydown', (event) => {
       chatInputEl?.focus();
     }
 
-    return;
-  }
-
-  if (isDigLocked()) {
-    const delta = MOVE_KEY_DELTAS[event.code];
-    if (delta || event.code === 'Space' || event.code === 'ShiftLeft' || event.code === 'ShiftRight') {
-      event.preventDefault();
-    }
     return;
   }
 
@@ -1752,10 +1748,6 @@ socket.on('cells:revealed', (payload) => {
       cells: payload.cells || [],
       playerId,
     });
-
-    if (playerId === state.myId) {
-      lockDigFor(delay);
-    }
     return;
   }
 
@@ -1778,9 +1770,6 @@ socket.on('bomb:exploded', (payload) => {
 
   const player = state.players.get(payload.id);
   if (player) player.stunnedUntil = payload.stunEndTime || Date.now() + 2000;
-  if (payload.id === state.myId) {
-    state.me.stunnedUntil = payload.stunEndTime || Date.now() + 2000;
-  }
 });
 
 socket.on('game:over', (payload) => {
