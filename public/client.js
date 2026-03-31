@@ -1,54 +1,63 @@
 const GRID_W = 70;
 const GRID_H = 70;
 const TOTAL_CELLS = GRID_W * GRID_H;
-
-const ISO_TILE_W = 96;
-const ISO_TILE_H = 48;
-const TILE_TIGHTEN_PX = 5;
-const ISO_STEP_W = ISO_TILE_W - TILE_TIGHTEN_PX;
-const ISO_STEP_H = ISO_TILE_H - TILE_TIGHTEN_PX;
-const ISO_STEP_HALF_W = ISO_STEP_W * 0.5;
-const ISO_STEP_HALF_H = ISO_STEP_H * 0.5;
-const TILE_DRAW_W = 92;
-const TILE_DRAW_H = 92;
-const OVERLAY_LIFT_Y = ISO_TILE_H * 0.5;
-const TILE_TOP_FACE_W = TILE_DRAW_W * 0.84;
-const TILE_TOP_FACE_H = TILE_DRAW_H * 0.48;
-
-const ISO_ORIGIN_X = GRID_H * ISO_STEP_HALF_W + 80;
-const ISO_ORIGIN_Y = 50;
+const TILE_SIZE = 32;
 
 const MIN_SCALE = 0.3;
 const MAX_SCALE = 2.0;
 const MOVE_COOLDOWN_MS = 120;
 const HOLD_DELAY_MS = 300;
-const WALK_WINDOW_MS = 220;
+const WALK_WINDOW_MS = 240;
 
-const PLAYER_FRAME_W = 48;
-const PLAYER_FRAME_H = 64;
-const PLAYER_DRAW_W = 88;
-const PLAYER_DRAW_H = 116;
-const PLAYER_FEET_OFFSET = 4;
-const PLAYER_IDLE_FEET_Y = 42;
-const PLAYER_WALK_FEET_Y = 43;
-const PLAYER_DIG_FEET_Y = 44;
+const ANIM_IDLE_MS = 220;
+const ANIM_RUN_MS = 85;
+const AVATAR_COUNT = 6;
+const CHAT_MAX_MESSAGES = 100;
+const CHAT_CLOSED_VISIBLE_MESSAGES = 3;
 
-const IDLE_FRAME_MS = 140;
-const WALK_FRAME_MS = 90;
-const DIG_FRAME_MS = 90;
+const PLAYER_COLORS = [
+  '#FF6B6B',
+  '#4ECDC4',
+  '#45B7D1',
+  '#96CEB4',
+  '#FFEAA7',
+  '#DDA0DD',
+  '#98D8C8',
+  '#F7DC6F',
+  '#FF8A80',
+  '#80D8FF',
+  '#B9F6CA',
+  '#FFD180',
+  '#EA80FC',
+  '#A7FFEB',
+  '#FF9E80',
+  '#82B1FF',
+  '#CCFF90',
+  '#FFAB91',
+  '#B388FF',
+  '#84FFFF',
+];
+
+const ANIMAL_FRAME = 32;
+const ANIMAL_COLS = 4;
 
 const EXPLOSION_FRAME_W = 64;
 const EXPLOSION_FRAME_H = 64;
 const EXPLOSION_FRAME_MS = 75;
 const EXPLOSION_FRAMES = 5;
-const EXPLOSION_DRAW_SIZE = 72;
+const EXPLOSION_DRAW_SIZE = 40;
 
 const BOMB_SRC_X = 136;
 const BOMB_SRC_Y = 82;
 const BOMB_SRC_W = 326;
 const BOMB_SRC_H = 406;
-const BOMB_DRAW_W = 26;
-const BOMB_DRAW_H = 32;
+const BOMB_DRAW_W = 20;
+const BOMB_DRAW_H = 24;
+
+const TRANSITION_EDGE_HALF = 6;
+const TRANSITION_CORNER_QUAD = 12;
+const TRANSITION_CORNER_DRAW = 12;
+const TRANSITION_CORNER_SHIFT = 6;
 
 const NUMBER_COLORS = {
   1: '#4488ff',
@@ -61,24 +70,17 @@ const NUMBER_COLORS = {
   8: '#ff44ff',
 };
 
-const PLAYER_COLORS = [
-  '#FF6B6B',
-  '#4ECDC4',
-  '#45B7D1',
-  '#96CEB4',
-  '#FFEAA7',
-  '#DDA0DD',
-  '#98D8C8',
-  '#F7DC6F',
-];
-
-const DIRECTION_ROW = {
-  down: 0,
-  left: 1,
-  topLeft: 2,
-  top: 3,
-  topRight: 4,
-  right: 5,
+const MOVE_KEY_DELTAS = {
+  ArrowUp: [0, -1],
+  KeyZ: [0, -1],
+  KeyW: [0, -1],
+  ArrowDown: [0, 1],
+  KeyS: [0, 1],
+  ArrowLeft: [-1, 0],
+  KeyQ: [-1, 0],
+  KeyA: [-1, 0],
+  ArrowRight: [1, 0],
+  KeyD: [1, 0],
 };
 
 const socket = io();
@@ -90,6 +92,8 @@ const lobbyEl = document.getElementById('lobby');
 const joinFormEl = document.getElementById('joinForm');
 const pseudoInputEl = document.getElementById('pseudoInput');
 const joinErrorEl = document.getElementById('joinError');
+const avatarPickerEl = document.getElementById('avatarPicker');
+const avatarOptionEls = Array.from(document.querySelectorAll('.avatar-option'));
 
 const reconnectEl = document.getElementById('reconnect');
 const hudEl = document.getElementById('hud');
@@ -107,6 +111,13 @@ const statsTableBodyEl = document.getElementById('statsTableBody');
 const explosionListEl = document.getElementById('explosionList');
 const statsCountdownEl = document.getElementById('statsCountdown');
 
+const chatDockEl = document.getElementById('chatDock');
+const chatToggleBtnEl = document.getElementById('chatToggleBtn');
+const chatMessagesEl = document.getElementById('chatMessages');
+const chatFormEl = document.getElementById('chatForm');
+const chatInputEl = document.getElementById('chatInput');
+const colorPickerEl = document.getElementById('colorPicker');
+
 function loadImage(src) {
   const image = new Image();
   image.loaded = false;
@@ -117,99 +128,6 @@ function loadImage(src) {
   return image;
 }
 
-const assets = {
-  tiles: {
-    hidden: loadImage('/assets/isometric_0.png'),
-    dug: loadImage('/assets/isometric_1.png'),
-  },
-  player: {
-    idle: {
-      image: loadImage('/assets/idle.png'),
-      frameWidth: PLAYER_FRAME_W,
-      frameHeight: PLAYER_FRAME_H,
-      frameCount: 8,
-      rows: 6,
-    },
-    walk: {
-      image: loadImage('/assets/walk.png'),
-      frameWidth: PLAYER_FRAME_W,
-      frameHeight: PLAYER_FRAME_H,
-      frameCount: 8,
-      rows: 6,
-    },
-    dig: {
-      image: loadImage('/assets/death_normal_down.png'),
-      frameWidth: PLAYER_FRAME_W,
-      frameHeight: PLAYER_FRAME_H,
-      frameCount: 5,
-      rows: 1,
-    },
-  },
-  fx: {
-    bomb: {
-      image: loadImage('/assets/bomb.png'),
-    },
-    explosion: {
-      image: loadImage('/assets/explosion.png'),
-      frameWidth: EXPLOSION_FRAME_W,
-      frameHeight: EXPLOSION_FRAME_H,
-      frameCount: EXPLOSION_FRAMES,
-    },
-  },
-};
-
-const state = {
-  phase: 'lobby',
-  myId: null,
-  myPseudo: null,
-  map: {
-    width: GRID_W,
-    height: GRID_H,
-    totalCells: TOTAL_CELLS,
-    bombCount: 0,
-    zoneCenters: [],
-    bombs: new Uint8Array(TOTAL_CELLS),
-    numbers: new Int8Array(TOTAL_CELLS),
-    startZone: new Uint8Array(TOTAL_CELLS),
-    safeZone: new Uint8Array(TOTAL_CELLS),
-  },
-  grid: new Int8Array(TOTAL_CELLS),
-  revealedSafeCount: 0,
-  flags: new Map(),
-  players: new Map(),
-  me: {
-    x: 0,
-    y: 0,
-    stunnedUntil: 0,
-  },
-  explosions: 0,
-  maxExplosions: 10,
-  startTime: null,
-  endTime: null,
-  camera: {
-    x: 0,
-    y: 0,
-    scale: 1,
-    isManual: false,
-    dragging: false,
-    dragLastX: 0,
-    dragLastY: 0,
-  },
-  mapBounds: null,
-  cursorCell: null,
-  moveQueue: [],
-  lastMoveAt: 0,
-  holdControls: new Map(),
-  statsCountdown: 60,
-  statsCountdownTimer: null,
-  explodedCells: new Set(),
-  activeExplosions: [],
-  hasJoinedOnce: false,
-  loopStarted: false,
-};
-
-state.grid.fill(-2);
-
 function hashPseudo(str) {
   let h = 0;
   for (let i = 0; i < str.length; i++) {
@@ -219,7 +137,14 @@ function hashPseudo(str) {
 }
 
 function colorForPseudo(pseudo) {
-  return PLAYER_COLORS[hashPseudo(pseudo) % PLAYER_COLORS.length];
+  return PLAYER_COLORS[hashPseudo(String(pseudo || '')) % PLAYER_COLORS.length];
+}
+
+function normalizeColorIndex(value) {
+  const index = Number(value);
+  if (!Number.isInteger(index)) return 0;
+  if (index < 0 || index >= PLAYER_COLORS.length) return 0;
+  return index;
 }
 
 function idx(x, y) {
@@ -228,6 +153,17 @@ function idx(x, y) {
 
 function clamp(v, min, max) {
   return Math.max(min, Math.min(max, v));
+}
+
+function isInBounds(x, y) {
+  return x >= 0 && x < GRID_W && y >= 0 && y < GRID_H;
+}
+
+function msToClock(ms) {
+  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+  const m = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
+  const s = (totalSeconds % 60).toString().padStart(2, '0');
+  return `${m}:${s}`;
 }
 
 function base64ToTypedArray(b64, TypedArray) {
@@ -240,74 +176,834 @@ function base64ToTypedArray(b64, TypedArray) {
   return new TypedArray(buffer);
 }
 
-function msToClock(ms) {
-  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
-  const m = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
-  const s = (totalSeconds % 60).toString().padStart(2, '0');
-  return `${m}:${s}`;
-}
-
-function isInBounds(x, y) {
-  return x >= 0 && x < GRID_W && y >= 0 && y < GRID_H;
-}
-
 function isStunned(playerLike) {
   return playerLike && playerLike.stunnedUntil && Date.now() < playerLike.stunnedUntil;
 }
 
-function directionFromDelta(dx, dy, currentRow = DIRECTION_ROW.down) {
-  if (dy > 0) return DIRECTION_ROW.down;
-  if (dy < 0 && dx < 0) return DIRECTION_ROW.topLeft;
-  if (dy < 0 && dx > 0) return DIRECTION_ROW.topRight;
-  if (dy < 0) return DIRECTION_ROW.top;
-  if (dx < 0) return DIRECTION_ROW.topLeft;
-  if (dx > 0) return DIRECTION_ROW.right;
-  return currentRow;
+function normalizeAvatarIndex(value) {
+  const avatar = Number(value);
+  if (!Number.isInteger(avatar)) return 0;
+  if (avatar < 0 || avatar >= AVATAR_COUNT) return 0;
+  return avatar;
 }
 
-function gridToIso(x, y) {
+function updateAvatarSelectionUI() {
+  for (const option of avatarOptionEls) {
+    const avatar = normalizeAvatarIndex(option.dataset.avatar);
+    const selected = avatar === state.myAvatar;
+    option.classList.toggle('selected', selected);
+    option.setAttribute('aria-checked', selected ? 'true' : 'false');
+  }
+}
+
+function setMyAvatar(value, persist = true) {
+  state.myAvatar = normalizeAvatarIndex(value);
+  updateAvatarSelectionUI();
+  if (persist) {
+    localStorage.setItem('avatar', String(state.myAvatar));
+  }
+}
+
+function updateColorSelectionUI() {
+  if (!colorPickerEl) return;
+  const options = Array.from(colorPickerEl.querySelectorAll('.color-option'));
+  for (const option of options) {
+    const idxValue = normalizeColorIndex(option.dataset.colorIndex);
+    const selected = idxValue === state.myColorIndex;
+    option.classList.toggle('selected', selected);
+    option.setAttribute('aria-checked', selected ? 'true' : 'false');
+  }
+}
+
+function setMyColorIndex(value, persist = true) {
+  state.myColorIndex = normalizeColorIndex(value);
+  updateColorSelectionUI();
+  if (persist) {
+    localStorage.setItem('colorIndex', String(state.myColorIndex));
+  }
+}
+
+function setupColorPicker() {
+  if (!colorPickerEl) return;
+
+  colorPickerEl.innerHTML = '';
+  for (let i = 0; i < PLAYER_COLORS.length; i++) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'color-option';
+    btn.dataset.colorIndex = String(i);
+    btn.setAttribute('role', 'radio');
+    btn.setAttribute('aria-checked', 'false');
+    btn.title = `Couleur ${i + 1}`;
+    btn.style.setProperty('--swatch-color', PLAYER_COLORS[i]);
+    btn.addEventListener('click', () => setMyColorIndex(i));
+    colorPickerEl.appendChild(btn);
+  }
+
+  updateColorSelectionUI();
+}
+
+function setupAvatarPicker() {
+  if (!avatarPickerEl) return;
+
+  for (const option of avatarOptionEls) {
+    option.addEventListener('click', () => {
+      setMyAvatar(option.dataset.avatar);
+    });
+  }
+
+  updateAvatarSelectionUI();
+}
+
+function drawAvatarPickerPreview(now) {
+  if (!avatarPickerEl) return;
+
+  const idleCol = Math.floor(now / ANIM_IDLE_MS) % ANIMAL_COLS;
+
+  for (const option of avatarOptionEls) {
+    const canvasEl = option.querySelector('.avatar-preview');
+    if (!canvasEl) continue;
+
+    const avatar = normalizeAvatarIndex(option.dataset.avatar);
+    const image = assets.sprites[avatar];
+    const pctx = canvasEl.getContext('2d');
+
+    pctx.clearRect(0, 0, canvasEl.width, canvasEl.height);
+    pctx.imageSmoothingEnabled = false;
+
+    if (image && image.loaded) {
+      pctx.drawImage(
+        image,
+        idleCol * ANIMAL_FRAME,
+        0,
+        ANIMAL_FRAME,
+        ANIMAL_FRAME,
+        0,
+        0,
+        canvasEl.width,
+        canvasEl.height,
+      );
+      continue;
+    }
+
+    pctx.fillStyle = '#d7e3ff';
+    pctx.fillRect(10, 10, canvasEl.width - 20, canvasEl.height - 20);
+  }
+}
+
+function normalizeChatEntry(entry) {
   return {
-    x: (x - y) * ISO_STEP_HALF_W + ISO_ORIGIN_X,
-    y: (x + y) * ISO_STEP_HALF_H + ISO_ORIGIN_Y,
+    id: String(entry?.id || `${Date.now()}-${Math.floor(Math.random() * 1e6)}`),
+    pseudo: String(entry?.pseudo || 'System'),
+    color: String(entry?.color || colorForPseudo(entry?.pseudo || 'System')),
+    text: String(entry?.text || '').trim(),
+    at: Number(entry?.at || Date.now()),
   };
 }
 
-function isoToGrid(worldX, worldY) {
-  const rx = worldX - ISO_ORIGIN_X;
-  const ry = worldY - ISO_ORIGIN_Y;
+function renderChatMessages() {
+  if (!chatMessagesEl) return;
 
-  const gx = (ry / ISO_STEP_HALF_H + rx / ISO_STEP_HALF_W) * 0.5;
-  const gy = (ry / ISO_STEP_HALF_H - rx / ISO_STEP_HALF_W) * 0.5;
+  const messagesToRender = state.chat.open
+    ? state.chat.messages
+    : state.chat.messages.slice(-CHAT_CLOSED_VISIBLE_MESSAGES);
 
+  chatMessagesEl.innerHTML = '';
+  for (const entry of messagesToRender) {
+    const li = document.createElement('li');
+    li.className = 'chat-item';
+    li.innerHTML = `<strong style="color:${entry.color};">${entry.pseudo}</strong>: ${entry.text}`;
+    chatMessagesEl.appendChild(li);
+  }
+
+  if (state.chat.open) {
+    chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
+  }
+}
+
+function setChatMessages(messages) {
+  state.chat.messages = (messages || [])
+    .map(normalizeChatEntry)
+    .filter((m) => m.text.length > 0)
+    .slice(-CHAT_MAX_MESSAGES);
+  renderChatMessages();
+}
+
+function appendChatMessage(entry) {
+  const normalized = normalizeChatEntry(entry);
+  if (!normalized.text) return;
+
+  state.chat.messages.push(normalized);
+  if (state.chat.messages.length > CHAT_MAX_MESSAGES) {
+    state.chat.messages = state.chat.messages.slice(-CHAT_MAX_MESSAGES);
+  }
+  renderChatMessages();
+}
+
+function setTypingStatus(active) {
+  if (!state.myId || state.chat.typingSent === active) return;
+
+  const me = state.players.get(state.myId);
+  if (me) {
+    me.isTyping = active;
+  }
+
+  state.chat.typingSent = active;
+  socket.emit('chat:typing', { active });
+}
+
+function setChatOpen(open, focusInput = true) {
+  const next = Boolean(open);
+  if (state.chat.open === next) return;
+
+  state.chat.open = next;
+  if (chatDockEl) {
+    chatDockEl.classList.toggle('open', next);
+  }
+  if (chatFormEl) {
+    chatFormEl.classList.toggle('hidden', !next);
+  }
+  renderChatMessages();
+
+  if (next) {
+    clearAllHoldMoves();
+    state.moveQueue = [];
+    state.camera.dragging = false;
+    setTypingStatus(true);
+    if (focusInput && chatInputEl) {
+      chatInputEl.focus();
+    }
+  } else {
+    setTypingStatus(false);
+    if (chatInputEl) {
+      chatInputEl.blur();
+    }
+  }
+}
+
+function toggleChat() {
+  setChatOpen(!state.chat.open);
+}
+
+const assets = {
+  tiles: {
+    grass: loadImage('/assets/herbe.png'),
+    dirt: loadImage('/assets/terre.png'),
+  },
+  transitions: {
+    edge: {
+      herbe_droite_terre_gauche: loadImage('/assets/herbe_droite_terre_gauche.png'),
+      herbe_gauche_terre_droite: loadImage('/assets/herbe_gauche_terre_droite.png'),
+      herbe_haut_terre_bas: loadImage('/assets/herbe_haut_terre_bas.png'),
+      herbe_bas_terre_haut: loadImage('/assets/herbe_bas_terre_haut.png'),
+    },
+    corner: {
+      herbe_coin_haut_gauche: loadImage('/assets/herbe_coin_haut_gauche.png'),
+      herbe_coin_haut_droite: loadImage('/assets/herbe_coin_haut_droite.png'),
+      herbe_coin_bas_gauche: loadImage('/assets/herbe_coin_bas_gauche.png'),
+      herbe_coin_bas_droite: loadImage('/assets/herbe_coin_bas_droite.png'),
+      terre_coin_haut_gauche: loadImage('/assets/terre_coin_haut_gauche.png'),
+      terre_coin_haut_droite: loadImage('/assets/terre_coin_haut_droite.png'),
+      terre_coin_bas_gauche: loadImage('/assets/terre_coin_bas_gauche.png'),
+      terre_coin_bas_droite: loadImage('/assets/terre_coin_bas_droite.png'),
+    },
+  },
+  sprites: [
+    loadImage('/assets/BIRDSPRITESHEET_Blue.png'),
+    loadImage('/assets/BIRDSPRITESHEET_White.png'),
+    loadImage('/assets/CATSPRITESHEET_Gray.png'),
+    loadImage('/assets/CATSPRITESHEET_Orange.png'),
+    loadImage('/assets/FOXSPRITESHEET.png'),
+    loadImage('/assets/RACCOONSPRITESHEET.png'),
+  ],
+  fx: {
+    bomb: loadImage('/assets/bomb.png'),
+    explosion: loadImage('/assets/explosion.png'),
+  },
+};
+
+const state = {
+  phase: 'lobby',
+  myId: null,
+  myPseudo: null,
+  myAvatar: 0,
+  myColorIndex: 0,
+  map: {
+    width: GRID_W,
+    height: GRID_H,
+    totalCells: TOTAL_CELLS,
+    bombCount: 0,
+    zoneCenters: [],
+    bombs: new Uint8Array(TOTAL_CELLS),
+    numbers: new Int8Array(TOTAL_CELLS),
+    startZone: new Uint8Array(TOTAL_CELLS),
+    safeZone: new Uint8Array(TOTAL_CELLS),
+  },
+  grid: new Int8Array(TOTAL_CELLS),
+  flags: new Map(),
+  players: new Map(),
+  revealedSafeCount: 0,
+  explosions: 0,
+  maxExplosions: 10,
+  startTime: null,
+  camera: {
+    x: 0,
+    y: 0,
+    scale: 1,
+    isManual: false,
+    dragging: false,
+    dragLastX: 0,
+    dragLastY: 0,
+  },
+  me: {
+    x: 0,
+    y: 0,
+    stunnedUntil: 0,
+  },
+  cursorCell: null,
+  moveQueue: [],
+  lastMoveAt: 0,
+  holdControls: new Map(),
+  activeExplosions: [],
+  explodedCells: new Set(),
+  hasJoinedOnce: false,
+  loopStarted: false,
+  statsCountdown: 60,
+  statsCountdownTimer: null,
+  chat: {
+    open: false,
+    typingSent: false,
+    messages: [],
+  },
+};
+
+state.grid.fill(-2);
+
+function tileSheetInfo(image) {
+  const cols = image.loaded ? Math.max(1, Math.floor(image.width / TILE_SIZE)) : 3;
+  const rows = image.loaded ? Math.max(1, Math.floor(image.height / TILE_SIZE)) : 3;
+  return { cols, rows };
+}
+
+function drawSheetTile(image, col, row, dx, dy) {
+  if (!image.loaded) {
+    return false;
+  }
+
+  ctx.drawImage(
+    image,
+    col * TILE_SIZE,
+    row * TILE_SIZE,
+    TILE_SIZE,
+    TILE_SIZE,
+    dx,
+    dy,
+    TILE_SIZE,
+    TILE_SIZE,
+  );
+
+  return true;
+}
+
+function getBorderTile(variantCols, x, y) {
+  const last = variantCols - 1;
+  const middleA = variantCols > 3 ? 1 : Math.min(1, last);
+  const middleB = variantCols > 3 ? last - 1 : Math.max(0, last - 1);
+
+  const onLeft = x === 0;
+  const onRight = x === GRID_W - 1;
+  const onTop = y === 0;
+  const onBottom = y === GRID_H - 1;
+
+  if (onTop && onLeft) return { col: 0, row: 0 };
+  if (onTop && onRight) return { col: last, row: 0 };
+  if (onBottom && onLeft) return { col: 0, row: last };
+  if (onBottom && onRight) return { col: last, row: last };
+
+  if (onTop) return { col: (x % 2 === 0 ? middleA : middleB), row: 0 };
+  if (onBottom) return { col: (x % 2 === 0 ? middleA : middleB), row: last };
+  if (onLeft) return { col: 0, row: (y % 2 === 0 ? middleA : middleB) };
+  if (onRight) return { col: last, row: (y % 2 === 0 ? middleA : middleB) };
+
+  return { col: middleA, row: middleA };
+}
+
+function drawCell(x, y) {
+  const i = idx(x, y);
+  const px = x * TILE_SIZE;
+  const py = y * TILE_SIZE;
+
+  const value = state.grid[i];
+  const hidden = value === -2;
+  const isBomb = state.map.bombs[i] === 1;
+  const inStats = state.phase === 'stats';
+
+  if (hidden) {
+    const { cols } = tileSheetInfo(assets.tiles.grass);
+    const t = getBorderTile(cols, x, y);
+    const painted = drawSheetTile(assets.tiles.grass, t.col, t.row, px, py);
+    if (!painted) {
+      ctx.fillStyle = '#7db24f';
+      ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+    }
+  } else {
+    const { cols } = tileSheetInfo(assets.tiles.dirt);
+    const t = getBorderTile(cols, x, y);
+    const painted = drawSheetTile(assets.tiles.dirt, t.col, t.row, px, py);
+    if (!painted) {
+      ctx.fillStyle = '#8b5a34';
+      ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+    }
+  }
+
+  if (state.map.startZone[i] === 1 && hidden) {
+    ctx.strokeStyle = '#ff4444';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(px + 1, py + 1, TILE_SIZE - 2, TILE_SIZE - 2);
+  }
+
+  if ((inStats && isBomb) || (!hidden && value === -1)) {
+    if (assets.fx.bomb.loaded) {
+      const bx = px + (TILE_SIZE - BOMB_DRAW_W) * 0.5;
+      const by = py + (TILE_SIZE - BOMB_DRAW_H) * 0.5;
+      ctx.drawImage(
+        assets.fx.bomb,
+        BOMB_SRC_X,
+        BOMB_SRC_Y,
+        BOMB_SRC_W,
+        BOMB_SRC_H,
+        bx,
+        by,
+        BOMB_DRAW_W,
+        BOMB_DRAW_H,
+      );
+    } else {
+      ctx.fillStyle = '#1a1a1a';
+      ctx.beginPath();
+      ctx.arc(px + 16, py + 16, 7, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+}
+
+function drawFlags(minX, maxX, minY, maxY) {
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 2;
+
+  for (let y = minY; y <= maxY; y++) {
+    for (let x = minX; x <= maxX; x++) {
+      const i = idx(x, y);
+      if (!state.flags.has(i) || state.grid[i] !== -2) continue;
+
+      const px = x * TILE_SIZE;
+      const py = y * TILE_SIZE;
+
+      ctx.beginPath();
+      ctx.moveTo(px + 12, py + 7);
+      ctx.lineTo(px + 12, py + 24);
+      ctx.stroke();
+
+      ctx.fillStyle = '#ff4b4b';
+      ctx.beginPath();
+      ctx.moveTo(px + 12, py + 8);
+      ctx.lineTo(px + 22, py + 12);
+      ctx.lineTo(px + 12, py + 16);
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
+}
+
+function cellIsGrass(x, y) {
+  return state.grid[idx(x, y)] === -2;
+}
+
+function isBorderCell(x, y) {
+  return x === 0 || y === 0 || x === GRID_W - 1 || y === GRID_H - 1;
+}
+
+function drawVerticalTransitionShared(x, y, leftGrass) {
+  const image = leftGrass
+    ? assets.transitions.edge.herbe_gauche_terre_droite
+    : assets.transitions.edge.herbe_droite_terre_gauche;
+  if (!image.loaded) return;
+
+  const px = x * TILE_SIZE;
+  const py = y * TILE_SIZE;
+
+  ctx.drawImage(
+    image,
+    0,
+    0,
+    TRANSITION_EDGE_HALF,
+    TILE_SIZE,
+    px + TILE_SIZE - TRANSITION_EDGE_HALF,
+    py,
+    TRANSITION_EDGE_HALF,
+    TILE_SIZE,
+  );
+
+  ctx.drawImage(
+    image,
+    TRANSITION_EDGE_HALF,
+    0,
+    TRANSITION_EDGE_HALF,
+    TILE_SIZE,
+    px + TILE_SIZE,
+    py,
+    TRANSITION_EDGE_HALF,
+    TILE_SIZE,
+  );
+}
+
+function drawHorizontalTransitionShared(x, y, topGrass) {
+  const image = topGrass
+    ? assets.transitions.edge.herbe_haut_terre_bas
+    : assets.transitions.edge.herbe_bas_terre_haut;
+  if (!image.loaded) return;
+
+  const px = x * TILE_SIZE;
+  const py = y * TILE_SIZE;
+
+  ctx.drawImage(
+    image,
+    0,
+    0,
+    TILE_SIZE,
+    TRANSITION_EDGE_HALF,
+    px,
+    py + TILE_SIZE - TRANSITION_EDGE_HALF,
+    TILE_SIZE,
+    TRANSITION_EDGE_HALF,
+  );
+
+  ctx.drawImage(
+    image,
+    0,
+    TRANSITION_EDGE_HALF,
+    TILE_SIZE,
+    TRANSITION_EDGE_HALF,
+    px,
+    py + TILE_SIZE,
+    TILE_SIZE,
+    TRANSITION_EDGE_HALF,
+  );
+}
+
+function drawCornerTransitionShared(image, x, y, shiftX, shiftY) {
+  if (!image || !image.loaded) return;
+
+  const px = x * TILE_SIZE;
+  const py = y * TILE_SIZE;
+  const src = TRANSITION_CORNER_QUAD;
+  const draw = TRANSITION_CORNER_DRAW;
+  const ox = px + TILE_SIZE - draw + shiftX;
+  const oy = py + TILE_SIZE - draw + shiftY;
+
+  ctx.drawImage(image, 0, 0, src, src, ox, oy, draw, draw);
+  ctx.drawImage(image, src, 0, src, src, ox + draw, oy, draw, draw);
+  ctx.drawImage(image, 0, src, src, src, ox, oy + draw, draw, draw);
+  ctx.drawImage(image, src, src, src, src, ox + draw, oy + draw, draw, draw);
+}
+
+function pickCornerTransition(tl, tr, bl, br) {
+  const grassCount = (tl ? 1 : 0) + (tr ? 1 : 0) + (bl ? 1 : 0) + (br ? 1 : 0);
+  if (grassCount !== 1 && grassCount !== 3) return null;
+
+  const s = TRANSITION_CORNER_SHIFT;
+  if (grassCount === 1) {
+    if (tl) return { image: assets.transitions.corner.herbe_coin_haut_gauche, shiftX: -s, shiftY: -s };
+    if (tr) return { image: assets.transitions.corner.herbe_coin_haut_droite, shiftX: s, shiftY: -s };
+    if (bl) return { image: assets.transitions.corner.herbe_coin_bas_gauche, shiftX: -s, shiftY: s };
+    return { image: assets.transitions.corner.herbe_coin_bas_droite, shiftX: s, shiftY: s };
+  }
+
+  if (!tl) return { image: assets.transitions.corner.terre_coin_haut_gauche, shiftX: -s, shiftY: -s };
+  if (!tr) return { image: assets.transitions.corner.terre_coin_haut_droite, shiftX: s, shiftY: -s };
+  if (!bl) return { image: assets.transitions.corner.terre_coin_bas_gauche, shiftX: -s, shiftY: s };
+  return { image: assets.transitions.corner.terre_coin_bas_droite, shiftX: s, shiftY: s };
+}
+
+function drawTransitions(minX, maxX, minY, maxY) {
+  // Pass 1: edge transitions shared between 2 tiles.
+  for (let y = minY; y <= maxY; y++) {
+    for (let x = minX; x < maxX; x++) {
+      if (isBorderCell(x, y) || isBorderCell(x + 1, y)) continue;
+
+      const leftGrass = cellIsGrass(x, y);
+      const rightGrass = cellIsGrass(x + 1, y);
+      if (leftGrass !== rightGrass) {
+        drawVerticalTransitionShared(x, y, leftGrass);
+      }
+    }
+  }
+
+  for (let y = minY; y < maxY; y++) {
+    for (let x = minX; x <= maxX; x++) {
+      if (isBorderCell(x, y) || isBorderCell(x, y + 1)) continue;
+
+      const topGrass = cellIsGrass(x, y);
+      const bottomGrass = cellIsGrass(x, y + 1);
+      if (topGrass !== bottomGrass) {
+        drawHorizontalTransitionShared(x, y, topGrass);
+      }
+    }
+  }
+
+  // Pass 2: corner transitions shared between 4 tiles (drawn above edges).
+  for (let y = minY; y < maxY; y++) {
+    for (let x = minX; x < maxX; x++) {
+      if (
+        isBorderCell(x, y) ||
+        isBorderCell(x + 1, y) ||
+        isBorderCell(x, y + 1) ||
+        isBorderCell(x + 1, y + 1)
+      ) {
+        continue;
+      }
+
+      const tl = cellIsGrass(x, y);
+      const tr = cellIsGrass(x + 1, y);
+      const bl = cellIsGrass(x, y + 1);
+      const br = cellIsGrass(x + 1, y + 1);
+
+      const corner = pickCornerTransition(tl, tr, bl, br);
+      if (!corner) continue;
+      drawCornerTransitionShared(corner.image, x, y, corner.shiftX, corner.shiftY);
+    }
+  }
+}
+
+function drawNumbers(minX, maxX, minY, maxY) {
+  ctx.font = 'bold 16px monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  for (let y = minY; y <= maxY; y++) {
+    for (let x = minX; x <= maxX; x++) {
+      const value = state.grid[idx(x, y)];
+      if (value <= 0) continue;
+
+      const px = x * TILE_SIZE;
+      const py = y * TILE_SIZE;
+      ctx.fillStyle = NUMBER_COLORS[value] || '#ffffff';
+      ctx.fillText(String(value), px + TILE_SIZE * 0.5, py + TILE_SIZE * 0.52);
+    }
+  }
+}
+
+function spriteDirection(dx, dy, previous = 'down') {
+  if (Math.abs(dx) > Math.abs(dy)) {
+    return dx < 0 ? 'left' : 'right';
+  }
+  if (dy < 0) return 'up';
+  if (dy > 0) return 'down';
+  return previous;
+}
+
+function playerSheetForPlayer(player) {
+  if (Number.isInteger(player.avatar)) {
+    return assets.sprites[normalizeAvatarIndex(player.avatar)];
+  }
+
+  const fallback = hashPseudo(player.pseudo) % assets.sprites.length;
+  return assets.sprites[fallback];
+}
+
+function getSpriteFrame(player, now) {
+  const moving = now - player.lastMoveAt <= WALK_WINDOW_MS;
+
+  if (!moving) {
+    const rowByDir = { down: 0, right: 1, left: 2, up: 3 };
+    return {
+      row: rowByDir[player.dir] ?? 0,
+      col: Math.floor(now / ANIM_IDLE_MS) % ANIMAL_COLS,
+    };
+  }
+
+  const runRowsByDir = {
+    down: [5, 6],
+    left: [7, 8],
+    right: [9, 10],
+    up: [11, 12],
+  };
+
+  const rows = runRowsByDir[player.dir] || runRowsByDir.down;
+  const frame = Math.floor(now / ANIM_RUN_MS) % 8;
   return {
-    x: Math.round(gx),
-    y: Math.round(gy),
+    row: rows[Math.floor(frame / 4)],
+    col: frame % 4,
   };
 }
 
-function computeMapBounds() {
-  const leftAnchor = gridToIso(0, GRID_H - 1).x;
-  const rightAnchor = gridToIso(GRID_W - 1, 0).x;
-  const topAnchor = gridToIso(0, 0).y;
-  const bottomAnchor = gridToIso(GRID_W - 1, GRID_H - 1).y;
+function drawPlayer(player, now) {
+  const px = player.x * TILE_SIZE;
+  const py = player.y * TILE_SIZE;
+
+  const stunned = player.stunnedUntil && now < player.stunnedUntil;
+  const blinkLow = stunned && Math.floor(now / 250) % 2 === 0;
+
+  ctx.globalAlpha = blinkLow ? 0.35 : 1;
+
+  const sheet = playerSheetForPlayer(player);
+  if (sheet.loaded) {
+    const frame = getSpriteFrame(player, now);
+    ctx.drawImage(
+      sheet,
+      frame.col * ANIMAL_FRAME,
+      frame.row * ANIMAL_FRAME,
+      ANIMAL_FRAME,
+      ANIMAL_FRAME,
+      px,
+      py,
+      TILE_SIZE,
+      TILE_SIZE,
+    );
+  } else {
+    ctx.fillStyle = '#ffd86b';
+    ctx.fillRect(px + 8, py + 8, 16, 16);
+  }
+
+  ctx.globalAlpha = 1;
 
   return {
-    left: leftAnchor - TILE_DRAW_W * 0.5 - 80,
-    right: rightAnchor + TILE_DRAW_W * 0.5 + 80,
-    top: topAnchor - TILE_DRAW_H + ISO_TILE_H - 30,
-    bottom: bottomAnchor + ISO_TILE_H + 120,
+    x: px + TILE_SIZE * 0.5,
+    y: py - 12,
+    text: player.pseudo,
+    isTyping: Boolean(player.isTyping),
+    color: player.color || colorForPseudo(player.pseudo),
   };
 }
 
-state.mapBounds = computeMapBounds();
+function drawExplosionAtCell(x, y, frame) {
+  if (!assets.fx.explosion.loaded) return;
+
+  const px = x * TILE_SIZE + (TILE_SIZE - EXPLOSION_DRAW_SIZE) * 0.5;
+  const py = y * TILE_SIZE + (TILE_SIZE - EXPLOSION_DRAW_SIZE) * 0.5;
+
+  ctx.drawImage(
+    assets.fx.explosion,
+    frame * EXPLOSION_FRAME_W,
+    0,
+    EXPLOSION_FRAME_W,
+    EXPLOSION_FRAME_H,
+    px,
+    py,
+    EXPLOSION_DRAW_SIZE,
+    EXPLOSION_DRAW_SIZE,
+  );
+}
+
+function bucketExplosions(now) {
+  const byCell = new Map();
+  const alive = [];
+
+  for (const fx of state.activeExplosions) {
+    const elapsed = now - fx.startedAt;
+    const frame = Math.floor(elapsed / EXPLOSION_FRAME_MS);
+    if (frame >= EXPLOSION_FRAMES) continue;
+
+    const key = idx(fx.x, fx.y);
+    if (!byCell.has(key)) byCell.set(key, []);
+    byCell.get(key).push(frame);
+    alive.push(fx);
+  }
+
+  state.activeExplosions = alive;
+  return byCell;
+}
+
+function drawCursorHighlight() {
+  if (!state.cursorCell) return;
+
+  const x = state.cursorCell.x * TILE_SIZE;
+  const y = state.cursorCell.y * TILE_SIZE;
+
+  ctx.fillStyle = 'rgba(90, 180, 255, 0.14)';
+  ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+  ctx.strokeStyle = 'rgba(120, 220, 255, 0.85)';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(x + 1, y + 1, TILE_SIZE - 2, TILE_SIZE - 2);
+}
+
+function renderFrame() {
+  const scale = state.camera.scale;
+  const now = Date.now();
+
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  ctx.setTransform(scale, 0, 0, scale, -state.camera.x * scale, -state.camera.y * scale);
+
+  const worldW = GRID_W * TILE_SIZE;
+  const worldH = GRID_H * TILE_SIZE;
+  ctx.fillStyle = '#00d9ff';
+  ctx.fillRect(-200, -200, worldW + 400, worldH + 400);
+
+  const viewW = canvas.width / scale;
+  const viewH = canvas.height / scale;
+  const minX = clamp(Math.floor(state.camera.x / TILE_SIZE) - 1, 0, GRID_W - 1);
+  const maxX = clamp(Math.ceil((state.camera.x + viewW) / TILE_SIZE) + 1, 0, GRID_W - 1);
+  const minY = clamp(Math.floor(state.camera.y / TILE_SIZE) - 1, 0, GRID_H - 1);
+  const maxY = clamp(Math.ceil((state.camera.y + viewH) / TILE_SIZE) + 1, 0, GRID_H - 1);
+
+  for (let y = minY; y <= maxY; y++) {
+    for (let x = minX; x <= maxX; x++) {
+      drawCell(x, y);
+    }
+  }
+
+  drawTransitions(minX, maxX, minY, maxY);
+  drawNumbers(minX, maxX, minY, maxY);
+  drawFlags(minX, maxX, minY, maxY);
+
+  const labels = [];
+  for (const player of state.players.values()) {
+    if (player.x < minX - 1 || player.x > maxX + 1 || player.y < minY - 1 || player.y > maxY + 1) {
+      continue;
+    }
+    labels.push(drawPlayer(player, now));
+  }
+
+  const explosionsByCell = bucketExplosions(now);
+  for (const [key, frames] of explosionsByCell.entries()) {
+    const x = key % GRID_W;
+    const y = Math.floor(key / GRID_W);
+    for (const frame of frames) {
+      drawExplosionAtCell(x, y, frame);
+    }
+  }
+
+  drawCursorHighlight();
+
+  ctx.font = '10px monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  for (const label of labels) {
+    if (label.isTyping) {
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = '#000000';
+      ctx.strokeText('ecrit...', label.x, label.y - 12);
+      ctx.fillStyle = '#ffd28f';
+      ctx.fillText('ecrit...', label.x, label.y - 12);
+    }
+
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = '#000000';
+    ctx.strokeText(label.text, label.x, label.y);
+    ctx.fillStyle = label.color || '#ffffff';
+    ctx.fillText(label.text, label.x, label.y);
+  }
+
+  drawAvatarPickerPreview(now);
+}
 
 function centerCameraOnMe(immediate = false) {
-  const viewportW = canvas.width / state.camera.scale;
-  const viewportH = canvas.height / state.camera.scale;
-  const meIso = gridToIso(state.me.x, state.me.y);
+  const viewW = canvas.width / state.camera.scale;
+  const viewH = canvas.height / state.camera.scale;
 
-  const targetX = meIso.x - viewportW * 0.5;
-  const targetY = meIso.y - viewportH * 0.55;
+  const targetX = state.me.x * TILE_SIZE + TILE_SIZE * 0.5 - viewW * 0.5;
+  const targetY = state.me.y * TILE_SIZE + TILE_SIZE * 0.5 - viewH * 0.5;
 
   if (immediate) {
     state.camera.x = targetX;
@@ -321,569 +1017,13 @@ function centerCameraOnMe(immediate = false) {
 }
 
 function clampCamera() {
+  const worldW = GRID_W * TILE_SIZE;
+  const worldH = GRID_H * TILE_SIZE;
   const viewW = canvas.width / state.camera.scale;
   const viewH = canvas.height / state.camera.scale;
-  const bounds = state.mapBounds;
 
-  const maxX = Math.max(bounds.left, bounds.right - viewW);
-  const maxY = Math.max(bounds.top, bounds.bottom - viewH);
-
-  state.camera.x = clamp(state.camera.x, bounds.left, maxX);
-  state.camera.y = clamp(state.camera.y, bounds.top, maxY);
-}
-
-function worldFromMouse(clientX, clientY) {
-  const rect = canvas.getBoundingClientRect();
-  const sx = clientX - rect.left;
-  const sy = clientY - rect.top;
-  return {
-    x: state.camera.x + sx / state.camera.scale,
-    y: state.camera.y + sy / state.camera.scale,
-  };
-}
-
-function updateCursorCell(clientX, clientY) {
-  const world = worldFromMouse(clientX, clientY);
-  // Hit-test against the tile top face (same vertical lift used by highlights/overlays).
-  const grid = isoToGrid(world.x, world.y + OVERLAY_LIFT_Y);
-  state.cursorCell = isInBounds(grid.x, grid.y) ? grid : null;
-}
-
-function clearStatsCountdownTimer() {
-  if (state.statsCountdownTimer) {
-    clearInterval(state.statsCountdownTimer);
-    state.statsCountdownTimer = null;
-  }
-}
-
-function clearAllHoldMoves() {
-  for (const code of state.holdControls.keys()) {
-    clearHoldMove(code);
-  }
-}
-
-function resizeCanvas() {
-  const w = Math.floor(window.innerWidth);
-  const h = Math.floor(window.innerHeight);
-
-  canvas.width = w;
-  canvas.height = h;
-  canvas.style.width = `${w}px`;
-  canvas.style.height = `${h}px`;
-
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.imageSmoothingEnabled = false;
-  centerCameraOnMe(true);
-}
-
-function hideLobby() {
-  lobbyEl.classList.add('hidden');
-  joinErrorEl.textContent = '';
-}
-
-function showLobby(message = '') {
-  lobbyEl.classList.remove('hidden');
-  joinErrorEl.textContent = message;
-}
-
-function showHud() {
-  hudEl.classList.remove('hidden');
-}
-
-function hideStatsOverlay() {
-  clearStatsCountdownTimer();
-  statsOverlayEl.classList.add('hidden');
-}
-
-function createPlayerAnimState(previous) {
-  return {
-    lastMoveAt: previous ? previous.lastMoveAt : 0,
-    action: previous ? previous.action : 'idle',
-    actionStart: previous ? previous.actionStart : 0,
-    actionUntil: previous ? previous.actionUntil : 0,
-    dirRow: previous ? previous.dirRow : DIRECTION_ROW.down,
-  };
-}
-
-function applyPlayerPayload(playerPayload) {
-  const previous = state.players.get(playerPayload.id);
-  const color = playerPayload.color || colorForPseudo(playerPayload.pseudo);
-
-  const normalized = {
-    id: playerPayload.id,
-    pseudo: playerPayload.pseudo,
-    x: playerPayload.x,
-    y: playerPayload.y,
-    color,
-    stunnedUntil: playerPayload.stunEndTime || 0,
-    stunned: Boolean(playerPayload.stunned),
-    ...createPlayerAnimState(previous),
-  };
-
-  if (previous && (previous.x !== normalized.x || previous.y !== normalized.y)) {
-    const dx = Math.sign(normalized.x - previous.x);
-    const dy = Math.sign(normalized.y - previous.y);
-    normalized.lastMoveAt = Date.now();
-    normalized.dirRow = directionFromDelta(dx, dy, normalized.dirRow);
-  }
-
-  state.players.set(normalized.id, normalized);
-
-  if (normalized.id === state.myId) {
-    state.me.x = normalized.x;
-    state.me.y = normalized.y;
-    state.me.stunnedUntil = normalized.stunnedUntil;
-  }
-}
-
-function applySnapshot(payload) {
-  state.phase = payload.phase === 'stats' ? 'stats' : 'playing';
-  state.myId = payload.myId || state.myId;
-  state.explosions = payload.explosions || 0;
-  state.maxExplosions = payload.maxExplosions || 10;
-  state.startTime = payload.startTime || Date.now();
-  state.endTime = payload.endTime || null;
-
-  state.map.width = payload.map.width;
-  state.map.height = payload.map.height;
-  state.map.totalCells = payload.map.totalCells;
-  state.map.bombCount = payload.map.bombCount;
-  state.map.zoneCenters = payload.map.zoneCenters || [];
-
-  state.map.bombs = base64ToTypedArray(payload.map.data.bombs, Uint8Array);
-  state.map.numbers = base64ToTypedArray(payload.map.data.numbers, Int8Array);
-  state.map.startZone = base64ToTypedArray(payload.map.data.startZone, Uint8Array);
-  state.map.safeZone = base64ToTypedArray(payload.map.data.safeZone, Uint8Array);
-
-  state.grid = new Int8Array(TOTAL_CELLS);
-  state.grid.fill(-2);
-  state.revealedSafeCount = 0;
-  state.flags = new Map();
-  state.players = new Map();
-  state.explodedCells = new Set();
-  state.activeExplosions = [];
-
-  for (const cell of payload.revealed || []) {
-    const i = idx(cell.x, cell.y);
-    state.grid[i] = cell.value;
-    if (cell.value >= 0) {
-      state.revealedSafeCount += 1;
-    }
-    if (cell.value === -1) {
-      state.explodedCells.add(i);
-    }
-  }
-
-  for (const flag of payload.flags || []) {
-    state.flags.set(idx(flag.x, flag.y), flag.pseudo);
-  }
-
-  for (const player of payload.players || []) {
-    applyPlayerPayload(player);
-  }
-
-  const me = state.players.get(state.myId);
-  if (me) {
-    state.me.x = me.x;
-    state.me.y = me.y;
-    state.me.stunnedUntil = me.stunnedUntil || 0;
-  }
-
-  hideLobby();
-  showHud();
-  hideStatsOverlay();
-  centerCameraOnMe(true);
-}
-
-function getActionTargetCell() {
-  const me = state.players.get(state.myId);
-  if (!me) {
-    return { x: state.me.x, y: state.me.y };
-  }
-
-  if (state.cursorCell) {
-    const dx = Math.abs(state.cursorCell.x - me.x);
-    const dy = Math.abs(state.cursorCell.y - me.y);
-    if (dx <= 1 && dy <= 1) {
-      return state.cursorCell;
-    }
-  }
-
-  return { x: me.x, y: me.y };
-}
-
-function enqueueMove(dx, dy) {
-  state.moveQueue.push({ type: 'move', dx, dy });
-}
-
-function markPlayerMoved(player, dx, dy, now) {
-  player.lastMoveAt = now;
-  if (player.action !== 'dig') {
-    player.action = 'walk';
-  }
-  player.dirRow = directionFromDelta(dx, dy, player.dirRow);
-}
-
-function processInputQueue() {
-  if (state.phase !== 'playing') return;
-  if (!state.moveQueue.length) return;
-
-  const now = Date.now();
-  if (now - state.lastMoveAt < MOVE_COOLDOWN_MS) return;
-
-  const action = state.moveQueue.shift();
-  if (!action || action.type !== 'move') return;
-
-  if (isStunned(state.me)) return;
-
-  const nx = state.me.x + action.dx;
-  const ny = state.me.y + action.dy;
-  if (!isInBounds(nx, ny)) return;
-
-  state.me.x = nx;
-  state.me.y = ny;
-
-  const me = state.players.get(state.myId);
-  if (me) {
-    me.x = nx;
-    me.y = ny;
-    markPlayerMoved(me, action.dx, action.dy, now);
-  }
-
-  state.lastMoveAt = now;
-
-  socket.emit('player:move', {
-    x: nx,
-    y: ny,
-  });
-}
-
-function drawDiamondFill(cx, cy, w, h, fillStyle, strokeStyle = null) {
-  ctx.beginPath();
-  ctx.moveTo(cx, cy - h * 0.5);
-  ctx.lineTo(cx + w * 0.5, cy);
-  ctx.lineTo(cx, cy + h * 0.5);
-  ctx.lineTo(cx - w * 0.5, cy);
-  ctx.closePath();
-
-  ctx.fillStyle = fillStyle;
-  ctx.fill();
-
-  if (strokeStyle) {
-    ctx.strokeStyle = strokeStyle;
-    ctx.lineWidth = 1;
-    ctx.stroke();
-  }
-}
-
-function drawFlagOnIso(cx, cy) {
-  const poleTopY = cy - ISO_TILE_H * 0.72;
-  const poleBottomY = cy - ISO_TILE_H * 0.1;
-
-  ctx.strokeStyle = '#ffffff';
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(cx - 1, poleTopY);
-  ctx.lineTo(cx - 1, poleBottomY);
-  ctx.stroke();
-
-  ctx.fillStyle = '#ff4b4b';
-  ctx.beginPath();
-  ctx.moveTo(cx - 1, poleTopY + 2);
-  ctx.lineTo(cx + ISO_TILE_W * 0.22, poleTopY + ISO_TILE_H * 0.16);
-  ctx.lineTo(cx - 1, poleTopY + ISO_TILE_H * 0.3);
-  ctx.closePath();
-  ctx.fill();
-}
-
-function drawPlayerSheetFrame(sheet, row, frame, dx, dy, dw, dh) {
-  if (!sheet.image.loaded) return false;
-
-  const safeRow = clamp(row, 0, sheet.rows - 1);
-  const safeFrame = ((frame % sheet.frameCount) + sheet.frameCount) % sheet.frameCount;
-
-  const sx = safeFrame * sheet.frameWidth;
-  const sy = safeRow * sheet.frameHeight;
-
-  ctx.drawImage(
-    sheet.image,
-    sx,
-    sy,
-    sheet.frameWidth,
-    sheet.frameHeight,
-    dx,
-    dy,
-    dw,
-    dh,
-  );
-
-  return true;
-}
-
-function drawTile(x, y) {
-  const i = idx(x, y);
-  const point = gridToIso(x, y);
-  const liftedY = point.y - OVERLAY_LIFT_Y;
-
-  const tileImage = state.grid[i] !== -2 ? assets.tiles.dug : assets.tiles.hidden;
-  const drawX = point.x - TILE_DRAW_W * 0.5;
-  const drawY = point.y - TILE_DRAW_H + ISO_TILE_H;
-
-  if (tileImage.loaded) {
-    ctx.drawImage(tileImage, drawX, drawY, TILE_DRAW_W, TILE_DRAW_H);
-  } else {
-    const color = state.grid[i] !== -2 ? '#26354a' : '#334c66';
-    drawDiamondFill(point.x, point.y, ISO_TILE_W, ISO_TILE_H, color, 'rgba(255,255,255,0.12)');
-  }
-
-  const hasFlag = state.flags.has(i);
-  const isRevealed = state.grid[i] !== -2;
-  const isStart = state.map.startZone[i] === 1;
-
-  if (!isRevealed && isStart) {
-    drawDiamondFill(point.x, liftedY, ISO_TILE_W * 0.92, ISO_TILE_H * 0.9, 'rgba(180, 0, 0, 0.35)', '#ff4444');
-  }
-
-  const value = state.grid[i];
-  if (isRevealed && value > 0) {
-    ctx.fillStyle = NUMBER_COLORS[value] || '#ffffff';
-    ctx.font = 'bold 14px monospace';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(String(value), point.x, liftedY - 2);
-  }
-
-  if (hasFlag && !isRevealed) {
-    drawFlagOnIso(point.x, liftedY);
-  }
-
-  const isBomb = state.map.bombs[i] === 1;
-  const inStats = state.phase === 'stats';
-  if ((inStats && isBomb) || (isRevealed && value === -1)) {
-    const exploded = state.explodedCells.has(i);
-    if (assets.fx.bomb.image.loaded) {
-      if (exploded) {
-        ctx.fillStyle = 'rgba(255, 80, 80, 0.35)';
-        ctx.beginPath();
-        ctx.ellipse(point.x, liftedY + 3, 12, 6, 0, 0, Math.PI * 2);
-        ctx.fill();
-      }
-
-      const bombX = point.x - BOMB_DRAW_W * 0.5;
-      const bombY = liftedY + 9 - BOMB_DRAW_H;
-      ctx.drawImage(
-        assets.fx.bomb.image,
-        BOMB_SRC_X,
-        BOMB_SRC_Y,
-        BOMB_SRC_W,
-        BOMB_SRC_H,
-        bombX,
-        bombY,
-        BOMB_DRAW_W,
-        BOMB_DRAW_H,
-      );
-    } else {
-      ctx.fillStyle = exploded ? 'rgba(255, 80, 80, 0.9)' : 'rgba(70, 70, 70, 0.8)';
-      ctx.beginPath();
-      ctx.arc(point.x, liftedY + 2, 7, 0, Math.PI * 2);
-      ctx.fill();
-
-      ctx.fillStyle = '#111';
-      ctx.beginPath();
-      ctx.arc(point.x, liftedY + 2, 4, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  }
-}
-
-function drawPlayer(player, now) {
-  const point = gridToIso(player.x, player.y);
-
-  const stunned = player.stunnedUntil && now < player.stunnedUntil;
-  const blinkLow = stunned && Math.floor(now / 250) % 2 === 0;
-
-  let sheet = assets.player.idle;
-  let frameMs = IDLE_FRAME_MS;
-  let frameBase = now;
-
-  if (player.action === 'dig' && now < player.actionUntil) {
-    sheet = assets.player.dig;
-    frameMs = DIG_FRAME_MS;
-    frameBase = now - player.actionStart;
-  } else if (now - player.lastMoveAt <= WALK_WINDOW_MS) {
-    sheet = assets.player.walk;
-    frameMs = WALK_FRAME_MS;
-  }
-
-  const frame = Math.floor(frameBase / frameMs) % sheet.frameCount;
-  const row = sheet.rows === 1 ? 0 : player.dirRow;
-
-  let sourceFeetY = PLAYER_IDLE_FEET_Y;
-  if (sheet === assets.player.walk) sourceFeetY = PLAYER_WALK_FEET_Y;
-  if (sheet === assets.player.dig) sourceFeetY = PLAYER_DIG_FEET_Y;
-
-  const feetY = point.y + PLAYER_FEET_OFFSET - OVERLAY_LIFT_Y;
-  const drawX = point.x - PLAYER_DRAW_W * 0.5;
-  const drawY = feetY - (sourceFeetY / sheet.frameHeight) * PLAYER_DRAW_H;
-
-  ctx.globalAlpha = blinkLow ? 0.35 : 1;
-
-  const rendered = drawPlayerSheetFrame(sheet, row, frame, drawX, drawY, PLAYER_DRAW_W, PLAYER_DRAW_H);
-  if (!rendered) {
-    ctx.beginPath();
-    ctx.arc(point.x, point.y - 8, 10, 0, Math.PI * 2);
-    ctx.fillStyle = player.color;
-    ctx.fill();
-  }
-
-  ctx.globalAlpha = 1;
-
-  return {
-    x: point.x,
-    y: drawY - 13,
-    text: player.pseudo,
-  };
-}
-
-function bucketActiveExplosions(now) {
-  const buckets = new Map();
-  const survivors = [];
-
-  for (const explosion of state.activeExplosions) {
-    const elapsed = now - explosion.startedAt;
-    const frame = Math.floor(elapsed / EXPLOSION_FRAME_MS);
-
-    if (frame >= EXPLOSION_FRAMES) {
-      continue;
-    }
-
-    const key = idx(explosion.x, explosion.y);
-    if (!buckets.has(key)) {
-      buckets.set(key, []);
-    }
-    buckets.get(key).push(frame);
-    survivors.push(explosion);
-  }
-
-  state.activeExplosions = survivors;
-  return buckets;
-}
-
-function drawExplosionAtCell(x, y, frame) {
-  const sheet = assets.fx.explosion;
-  if (!sheet.image.loaded) {
-    return;
-  }
-
-  const point = gridToIso(x, y);
-  const liftedY = point.y - OVERLAY_LIFT_Y;
-  const drawX = point.x - EXPLOSION_DRAW_SIZE * 0.5;
-  const drawY = liftedY - EXPLOSION_DRAW_SIZE + 8;
-
-  const sx = frame * sheet.frameWidth;
-  ctx.drawImage(
-    sheet.image,
-    sx,
-    0,
-    sheet.frameWidth,
-    sheet.frameHeight,
-    drawX,
-    drawY,
-    EXPLOSION_DRAW_SIZE,
-    EXPLOSION_DRAW_SIZE,
-  );
-}
-
-function drawCursorHighlight() {
-  if (!state.cursorCell) return;
-
-  const point = gridToIso(state.cursorCell.x, state.cursorCell.y);
-  drawDiamondFill(
-    point.x,
-    point.y - OVERLAY_LIFT_Y + 1,
-    TILE_TOP_FACE_W,
-    TILE_TOP_FACE_H,
-    'rgba(90, 180, 255, 0.12)',
-    'rgba(120, 220, 255, 0.85)',
-  );
-}
-
-function renderFrame() {
-  const scale = state.camera.scale;
-  const now = Date.now();
-
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-  ctx.setTransform(scale, 0, 0, scale, -state.camera.x * scale, -state.camera.y * scale);
-
-  ctx.fillStyle = '#090b15';
-  ctx.fillRect(
-    state.mapBounds.left - 200,
-    state.mapBounds.top - 200,
-    (state.mapBounds.right - state.mapBounds.left) + 400,
-    (state.mapBounds.bottom - state.mapBounds.top) + 400,
-  );
-
-  const playersByCell = new Map();
-  for (const player of state.players.values()) {
-    const key = idx(player.x, player.y);
-    if (!playersByCell.has(key)) {
-      playersByCell.set(key, []);
-    }
-    playersByCell.get(key).push(player);
-  }
-
-  const explosionsByCell = bucketActiveExplosions(now);
-  const labels = [];
-
-  for (let depth = 0; depth <= GRID_W + GRID_H - 2; depth++) {
-    const minX = Math.max(0, depth - (GRID_H - 1));
-    const maxX = Math.min(GRID_W - 1, depth);
-
-    for (let x = minX; x <= maxX; x++) {
-      const y = depth - x;
-      drawTile(x, y);
-
-      const key = idx(x, y);
-      const players = playersByCell.get(key);
-      if (players) {
-        for (const player of players) {
-          const label = drawPlayer(player, now);
-          labels.push(label);
-        }
-      }
-
-      const explosions = explosionsByCell.get(key);
-      if (explosions) {
-        for (const frame of explosions) {
-          drawExplosionAtCell(x, y, frame);
-        }
-      }
-    }
-  }
-
-  drawCursorHighlight();
-
-  for (const label of labels) {
-    ctx.font = '10px monospace';
-    const textWidth = ctx.measureText(label.text).width;
-    const pad = 2;
-    const w = textWidth + pad * 2;
-    const h = 14;
-
-    const x = label.x - w * 0.5;
-    const y = label.y;
-
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = '#000000';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.strokeText(label.text, x + w * 0.5, y + h * 0.53);
-
-    ctx.fillStyle = '#ffffff';
-    ctx.fillText(label.text, x + w * 0.5, y + h * 0.53);
-  }
+  state.camera.x = clamp(state.camera.x, 0, Math.max(0, worldW - viewW));
+  state.camera.y = clamp(state.camera.y, 0, Math.max(0, worldH - viewH));
 }
 
 function updateCamera() {
@@ -895,31 +1035,30 @@ function updateCamera() {
 
   const viewW = canvas.width / state.camera.scale;
   const viewH = canvas.height / state.camera.scale;
-  const meIso = gridToIso(state.me.x, state.me.y);
+  const px = state.me.x * TILE_SIZE + TILE_SIZE * 0.5;
+  const py = state.me.y * TILE_SIZE + TILE_SIZE * 0.5;
 
-  const targetX = meIso.x - viewW * 0.5;
-  const targetY = meIso.y - viewH * 0.55;
+  const targetX = px - viewW * 0.5;
+  const targetY = py - viewH * 0.5;
 
   if (!state.camera.isManual) {
     state.camera.x = targetX;
     state.camera.y = targetY;
-    clampCamera();
-    return;
-  }
-
-  const centerX = state.camera.x + viewW * 0.5;
-  const centerY = state.camera.y + viewH * 0.5;
-  const distanceIso = Math.max(
-    Math.abs(centerX - meIso.x) / ISO_STEP_W,
-    Math.abs(centerY - meIso.y) / ISO_STEP_H,
-  );
-
-  if (distanceIso > 5) {
-    state.camera.x = targetX;
-    state.camera.y = targetY;
   } else {
-    state.camera.x += (targetX - state.camera.x) * 0.05;
-    state.camera.y += (targetY - state.camera.y) * 0.05;
+    const centerX = state.camera.x + viewW * 0.5;
+    const centerY = state.camera.y + viewH * 0.5;
+    const maxCellDelta = Math.max(
+      Math.abs(centerX - px) / TILE_SIZE,
+      Math.abs(centerY - py) / TILE_SIZE,
+    );
+
+    if (maxCellDelta > 5) {
+      state.camera.x = targetX;
+      state.camera.y = targetY;
+    } else {
+      state.camera.x += (targetX - state.camera.x) * 0.05;
+      state.camera.y += (targetY - state.camera.y) * 0.05;
+    }
   }
 
   clampCamera();
@@ -927,18 +1066,27 @@ function updateCamera() {
 
 function updateHud() {
   const playerCount = state.players.size;
-  const flags = state.flags.size;
-  const now = Date.now();
-  const elapsed = state.startTime ? now - state.startTime : 0;
+  const flagsCount = state.flags.size;
+  const elapsed = state.startTime ? Date.now() - state.startTime : 0;
   const safeTotal = Math.max(0, state.map.totalCells - state.map.bombCount);
 
   hudBombsEl.textContent = `Bombes: ${state.explosions}/${state.maxExplosions}`;
   hudBombsEl.classList.toggle('bombs-danger', state.explosions >= 7);
-
   hudTimeEl.textContent = msToClock(elapsed);
   hudPlayersEl.textContent = `${playerCount} joueurs`;
-  hudFlagsEl.textContent = `Drapeaux: ${flags}`;
+  hudFlagsEl.textContent = `Drapeaux: ${flagsCount}`;
   hudRevealedEl.textContent = `Cases revelees: ${state.revealedSafeCount}/${safeTotal}`;
+}
+
+function clearStatsCountdownTimer() {
+  if (!state.statsCountdownTimer) return;
+  clearInterval(state.statsCountdownTimer);
+  state.statsCountdownTimer = null;
+}
+
+function hideStatsOverlay() {
+  clearStatsCountdownTimer();
+  statsOverlayEl.classList.add('hidden');
 }
 
 function drawStatsMiniMap() {
@@ -964,15 +1112,9 @@ function drawStatsMiniMap() {
         const exploded = state.explodedCells.has(i);
         mapCtx.fillStyle = exploded ? '#ff0000' : '#666666';
         mapCtx.fillRect(px, py, cell, cell);
-        mapCtx.fillStyle = '#111111';
-        const r = Math.max(1, Math.floor(cell * 0.25));
-        mapCtx.beginPath();
-        mapCtx.arc(px + cell * 0.5, py + cell * 0.5, r, 0, Math.PI * 2);
-        mapCtx.fill();
       } else {
         mapCtx.fillStyle = '#141727';
         mapCtx.fillRect(px, py, cell, cell);
-
         const n = state.map.numbers[i];
         if (n > 0 && cell >= 4) {
           mapCtx.fillStyle = NUMBER_COLORS[n] || '#ffffff';
@@ -988,7 +1130,6 @@ function drawStatsMiniMap() {
 
 function showStatsOverlay(result, stats) {
   state.phase = 'stats';
-
   statsOverlayEl.classList.remove('hidden');
 
   if (result === 'win') {
@@ -1002,17 +1143,19 @@ function showStatsOverlay(result, stats) {
   statsDurationEl.textContent = `Duree de partie: ${msToClock(stats.durationMs || 0)}`;
 
   statsTableBodyEl.innerHTML = '';
-  (stats.players || []).forEach((player, index) => {
+  for (let i = 0; i < (stats.players || []).length; i++) {
+    const p = stats.players[i];
     const row = document.createElement('tr');
+    const pseudoColor = p.color || colorForPseudo(p.pseudo);
     row.innerHTML = `
-      <td>${index + 1}</td>
-      <td style="color:${player.color};font-weight:bold;">${player.pseudo}</td>
-      <td>${player.cellsRevealed}</td>
-      <td>${player.bombsTriggered}</td>
-      <td>${player.flagsCorrect}/${player.flagsIncorrect}</td>
+      <td>${i + 1}</td>
+      <td style="font-weight:bold;color:${pseudoColor};">${p.pseudo}</td>
+      <td>${p.cellsRevealed}</td>
+      <td>${p.bombsTriggered}</td>
+      <td>${p.flagsCorrect}/${p.flagsIncorrect}</td>
     `;
     statsTableBodyEl.appendChild(row);
-  });
+  }
 
   explosionListEl.innerHTML = '';
   if (!stats.explodedBy || stats.explodedBy.length === 0) {
@@ -1032,11 +1175,222 @@ function showStatsOverlay(result, stats) {
   clearStatsCountdownTimer();
   state.statsCountdown = 60;
   statsCountdownEl.textContent = `Nouvelle partie dans: ${state.statsCountdown}s`;
-
   state.statsCountdownTimer = setInterval(() => {
     state.statsCountdown = Math.max(0, state.statsCountdown - 1);
     statsCountdownEl.textContent = `Nouvelle partie dans: ${state.statsCountdown}s`;
   }, 1000);
+}
+
+function applyPlayerPayload(payload) {
+  const previous = state.players.get(payload.id);
+  let avatar = null;
+  let colorIndex = null;
+
+  if (payload.avatar !== undefined && payload.avatar !== null) {
+    avatar = normalizeAvatarIndex(payload.avatar);
+  } else if (previous && Number.isInteger(previous.avatar)) {
+    avatar = previous.avatar;
+  } else if (payload.id === state.myId) {
+    avatar = state.myAvatar;
+  } else {
+    avatar = hashPseudo(payload.pseudo) % assets.sprites.length;
+  }
+
+  if (payload.colorIndex !== undefined && payload.colorIndex !== null) {
+    colorIndex = normalizeColorIndex(payload.colorIndex);
+  } else if (previous && Number.isInteger(previous.colorIndex)) {
+    colorIndex = previous.colorIndex;
+  } else if (payload.id === state.myId) {
+    colorIndex = state.myColorIndex;
+  } else {
+    colorIndex = hashPseudo(payload.pseudo) % PLAYER_COLORS.length;
+  }
+
+  const player = {
+    id: payload.id,
+    pseudo: payload.pseudo,
+    colorIndex,
+    color: payload.color || PLAYER_COLORS[colorIndex] || colorForPseudo(payload.pseudo),
+    avatar,
+    x: payload.x,
+    y: payload.y,
+    isTyping: Boolean(payload.isTyping),
+    stunnedUntil: payload.stunEndTime || 0,
+    dir: previous ? previous.dir : 'down',
+    lastMoveAt: previous ? previous.lastMoveAt : 0,
+  };
+
+  if (previous && (previous.x !== player.x || previous.y !== player.y)) {
+    player.dir = spriteDirection(player.x - previous.x, player.y - previous.y, previous.dir);
+    player.lastMoveAt = Date.now();
+  }
+
+  state.players.set(player.id, player);
+
+  if (player.id === state.myId) {
+    state.myAvatar = player.avatar;
+    updateAvatarSelectionUI();
+    state.myColorIndex = player.colorIndex;
+    updateColorSelectionUI();
+    state.me.x = player.x;
+    state.me.y = player.y;
+    state.me.stunnedUntil = player.stunnedUntil;
+  }
+}
+
+function applySnapshot(payload) {
+  state.phase = payload.phase === 'stats' ? 'stats' : 'playing';
+  state.myId = payload.myId || state.myId;
+  state.explosions = payload.explosions || 0;
+  state.maxExplosions = payload.maxExplosions || 10;
+  state.startTime = payload.startTime || Date.now();
+
+  state.map.width = payload.map.width;
+  state.map.height = payload.map.height;
+  state.map.totalCells = payload.map.totalCells;
+  state.map.bombCount = payload.map.bombCount;
+  state.map.zoneCenters = payload.map.zoneCenters || [];
+
+  state.map.bombs = base64ToTypedArray(payload.map.data.bombs, Uint8Array);
+  state.map.numbers = base64ToTypedArray(payload.map.data.numbers, Int8Array);
+  state.map.startZone = base64ToTypedArray(payload.map.data.startZone, Uint8Array);
+  state.map.safeZone = base64ToTypedArray(payload.map.data.safeZone, Uint8Array);
+
+  state.grid = new Int8Array(TOTAL_CELLS);
+  state.grid.fill(-2);
+  state.flags = new Map();
+  state.players = new Map();
+  state.revealedSafeCount = 0;
+  state.explodedCells = new Set();
+  state.activeExplosions = [];
+
+  for (const cell of payload.revealed || []) {
+    const i = idx(cell.x, cell.y);
+    state.grid[i] = cell.value;
+    if (cell.value >= 0) state.revealedSafeCount += 1;
+    if (cell.value === -1) state.explodedCells.add(i);
+  }
+
+  for (const flag of payload.flags || []) {
+    state.flags.set(idx(flag.x, flag.y), flag.pseudo);
+  }
+
+  for (const player of payload.players || []) {
+    applyPlayerPayload(player);
+  }
+
+  setChatMessages(payload.chatMessages || []);
+
+  const me = state.players.get(state.myId);
+  if (me) {
+    state.me.x = me.x;
+    state.me.y = me.y;
+    state.me.stunnedUntil = me.stunnedUntil || 0;
+  }
+
+  lobbyEl.classList.add('hidden');
+  joinErrorEl.textContent = '';
+  reconnectEl.classList.add('hidden');
+  hudEl.classList.remove('hidden');
+  hideStatsOverlay();
+  centerCameraOnMe(true);
+
+  if (state.chat.open) {
+    setTypingStatus(true);
+  }
+}
+
+function updateCursorCell(clientX, clientY) {
+  const rect = canvas.getBoundingClientRect();
+  const sx = clientX - rect.left;
+  const sy = clientY - rect.top;
+
+  const worldX = state.camera.x + sx / state.camera.scale;
+  const worldY = state.camera.y + sy / state.camera.scale;
+
+  const x = Math.floor(worldX / TILE_SIZE);
+  const y = Math.floor(worldY / TILE_SIZE);
+  state.cursorCell = isInBounds(x, y) ? { x, y } : null;
+}
+
+function getActionTargetCell() {
+  const me = state.players.get(state.myId);
+  if (!me) return { x: state.me.x, y: state.me.y };
+
+  if (state.cursorCell) {
+    const dx = Math.abs(state.cursorCell.x - me.x);
+    const dy = Math.abs(state.cursorCell.y - me.y);
+    if (dx <= 1 && dy <= 1) return state.cursorCell;
+  }
+
+  return { x: me.x, y: me.y };
+}
+
+function emitCellAction(eventName) {
+  if (state.phase !== 'playing' || state.chat.open || isStunned(state.me)) return;
+  socket.emit(eventName, getActionTargetCell());
+}
+
+function processInputQueue() {
+  if (state.phase !== 'playing') return;
+  if (state.chat.open) return;
+  if (state.moveQueue.length === 0) return;
+
+  const now = Date.now();
+  if (now - state.lastMoveAt < MOVE_COOLDOWN_MS) return;
+  if (isStunned(state.me)) return;
+
+  const action = state.moveQueue.shift();
+  if (!action) return;
+
+  const nx = state.me.x + action.dx;
+  const ny = state.me.y + action.dy;
+  if (!isInBounds(nx, ny)) return;
+
+  state.me.x = nx;
+  state.me.y = ny;
+
+  const me = state.players.get(state.myId);
+  if (me) {
+    me.dir = spriteDirection(action.dx, action.dy, me.dir);
+    me.lastMoveAt = now;
+    me.x = nx;
+    me.y = ny;
+  }
+
+  state.lastMoveAt = now;
+  socket.emit('player:move', { x: nx, y: ny });
+}
+
+function enqueueMove(dx, dy) {
+  state.moveQueue.push({ dx, dy });
+}
+
+function registerHoldMove(code, dx, dy) {
+  if (state.holdControls.has(code)) return;
+
+  enqueueMove(dx, dy);
+  const hold = {
+    interval: null,
+    timeout: setTimeout(() => {
+      hold.interval = setInterval(() => enqueueMove(dx, dy), MOVE_COOLDOWN_MS);
+    }, HOLD_DELAY_MS),
+  };
+  state.holdControls.set(code, hold);
+}
+
+function clearHoldMove(code) {
+  const hold = state.holdControls.get(code);
+  if (!hold) return;
+  clearTimeout(hold.timeout);
+  if (hold.interval) clearInterval(hold.interval);
+  state.holdControls.delete(code);
+}
+
+function clearAllHoldMoves() {
+  for (const code of state.holdControls.keys()) {
+    clearHoldMove(code);
+  }
 }
 
 function updateLocalPlayerFromServerMove(id, x, y) {
@@ -1044,9 +1398,8 @@ function updateLocalPlayerFromServerMove(id, x, y) {
   if (!player) return;
 
   if (player.x !== x || player.y !== y) {
-    const dx = Math.sign(x - player.x);
-    const dy = Math.sign(y - player.y);
-    markPlayerMoved(player, dx, dy, Date.now());
+    player.dir = spriteDirection(x - player.x, y - player.y, player.dir);
+    player.lastMoveAt = Date.now();
   }
 
   player.x = x;
@@ -1073,102 +1426,23 @@ function startGameLoop() {
   requestAnimationFrame(tick);
 }
 
-function findPlayerByPseudo(pseudo) {
-  for (const player of state.players.values()) {
-    if (player.pseudo === pseudo) {
-      return player;
-    }
-  }
-  return null;
-}
+function resizeCanvas() {
+  const w = Math.floor(window.innerWidth);
+  const h = Math.floor(window.innerHeight);
 
-function startDigAnimationForPseudo(pseudo) {
-  if (!pseudo) return;
+  canvas.width = w;
+  canvas.height = h;
+  canvas.style.width = `${w}px`;
+  canvas.style.height = `${h}px`;
 
-  const player = findPlayerByPseudo(pseudo);
-  if (!player) return;
-
-  const now = Date.now();
-  player.action = 'dig';
-  player.actionStart = now;
-  player.actionUntil = now + assets.player.dig.frameCount * DIG_FRAME_MS;
-}
-
-function pushExplosionFx(x, y) {
-  state.activeExplosions.push({
-    x,
-    y,
-    startedAt: Date.now(),
-  });
-}
-
-function tryRevealAction() {
-  if (state.phase !== 'playing') return;
-  if (isStunned(state.me)) return;
-
-  const target = getActionTargetCell();
-  socket.emit('cell:reveal', target);
-}
-
-function tryFlagAction() {
-  if (state.phase !== 'playing') return;
-  if (isStunned(state.me)) return;
-
-  const target = getActionTargetCell();
-  socket.emit('cell:flag', target);
-}
-
-function registerHoldMove(code, dx, dy) {
-  if (state.holdControls.has(code)) return;
-
-  enqueueMove(dx, dy);
-
-  const hold = {
-    interval: null,
-    timeout: setTimeout(() => {
-      hold.interval = setInterval(() => {
-        enqueueMove(dx, dy);
-      }, MOVE_COOLDOWN_MS);
-    }, HOLD_DELAY_MS),
-  };
-
-  state.holdControls.set(code, hold);
-}
-
-function clearHoldMove(code) {
-  const hold = state.holdControls.get(code);
-  if (!hold) return;
-
-  clearTimeout(hold.timeout);
-  if (hold.interval) {
-    clearInterval(hold.interval);
-  }
-
-  state.holdControls.delete(code);
-}
-
-function handleDirectionalKeyDown(code) {
-  if (code === 'ArrowUp' || code === 'KeyZ' || code === 'KeyW') return registerHoldMove(code, 0, -1);
-  if (code === 'ArrowDown' || code === 'KeyS') return registerHoldMove(code, 0, 1);
-  if (code === 'ArrowLeft' || code === 'KeyQ' || code === 'KeyA') return registerHoldMove(code, -1, 0);
-  if (code === 'ArrowRight' || code === 'KeyD') return registerHoldMove(code, 1, 0);
-}
-
-function handleDirectionalKeyUp(code) {
-  if (
-    code === 'ArrowUp' || code === 'KeyZ' || code === 'KeyW' ||
-    code === 'ArrowDown' || code === 'KeyS' ||
-    code === 'ArrowLeft' || code === 'KeyQ' || code === 'KeyA' ||
-    code === 'ArrowRight' || code === 'KeyD'
-  ) {
-    clearHoldMove(code);
-  }
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.imageSmoothingEnabled = false;
+  centerCameraOnMe(true);
 }
 
 joinFormEl.addEventListener('submit', (event) => {
   event.preventDefault();
   const pseudo = String(pseudoInputEl.value || '').trim();
-
   if (!pseudo) {
     joinErrorEl.textContent = 'Entre un pseudo.';
     return;
@@ -1178,14 +1452,39 @@ joinFormEl.addEventListener('submit', (event) => {
   state.hasJoinedOnce = true;
   localStorage.setItem('pseudo', pseudo);
   joinErrorEl.textContent = '';
+  socket.emit('player:join', {
+    pseudo,
+    avatar: state.myAvatar,
+    colorIndex: state.myColorIndex,
+  });
+});
 
-  socket.emit('player:join', { pseudo });
+chatToggleBtnEl?.addEventListener('click', () => {
+  toggleChat();
+});
+
+chatFormEl?.addEventListener('submit', (event) => {
+  event.preventDefault();
+  if (!state.myId) return;
+
+  const text = String(chatInputEl?.value || '').replace(/\s+/g, ' ').trim();
+  if (!text) return;
+
+  socket.emit('chat:send', { text });
+  if (chatInputEl) {
+    chatInputEl.value = '';
+    chatInputEl.focus();
+  }
+  if (state.chat.open) {
+    setTypingStatus(true);
+  }
 });
 
 window.addEventListener('resize', resizeCanvas);
 window.addEventListener('blur', clearAllHoldMoves);
 
 canvas.addEventListener('mousedown', (event) => {
+  if (state.chat.open) return;
   if (event.button !== 0) return;
   state.camera.dragging = true;
   state.camera.isManual = true;
@@ -1201,7 +1500,6 @@ window.addEventListener('mousemove', (event) => {
   updateCursorCell(event.clientX, event.clientY);
 
   if (!state.camera.dragging) return;
-
   const dx = event.clientX - state.camera.dragLastX;
   const dy = event.clientY - state.camera.dragLastY;
 
@@ -1214,56 +1512,86 @@ window.addEventListener('mousemove', (event) => {
 });
 
 canvas.addEventListener('wheel', (event) => {
+  if (state.chat.open) return;
   event.preventDefault();
 
   const rect = canvas.getBoundingClientRect();
   const sx = event.clientX - rect.left;
   const sy = event.clientY - rect.top;
 
-  const worldXBefore = state.camera.x + sx / state.camera.scale;
-  const worldYBefore = state.camera.y + sy / state.camera.scale;
+  const worldX = state.camera.x + sx / state.camera.scale;
+  const worldY = state.camera.y + sy / state.camera.scale;
 
   const delta = event.deltaY < 0 ? 1.12 : 0.88;
   const nextScale = clamp(state.camera.scale * delta, MIN_SCALE, MAX_SCALE);
 
   state.camera.scale = nextScale;
-  state.camera.x = worldXBefore - sx / nextScale;
-  state.camera.y = worldYBefore - sy / nextScale;
+  state.camera.x = worldX - sx / nextScale;
+  state.camera.y = worldY - sy / nextScale;
   state.camera.isManual = true;
   clampCamera();
 }, { passive: false });
 
 window.addEventListener('keydown', (event) => {
+  if (event.code === 'Tab') {
+    event.preventDefault();
+    toggleChat();
+    return;
+  }
+
+  if (state.chat.open) {
+    if (event.code === 'Escape') {
+      event.preventDefault();
+      setChatOpen(false, false);
+      return;
+    }
+
+    if (event.code === 'Enter' && document.activeElement !== chatInputEl) {
+      event.preventDefault();
+      chatInputEl?.focus();
+    }
+
+    return;
+  }
+
   if (event.code === 'Space') {
     event.preventDefault();
-    if (!event.repeat) tryRevealAction();
+    if (!event.repeat) emitCellAction('cell:reveal');
     return;
   }
 
   if (event.code === 'ShiftLeft' || event.code === 'ShiftRight') {
     event.preventDefault();
-    if (!event.repeat) tryFlagAction();
+    if (!event.repeat) emitCellAction('cell:flag');
     return;
   }
 
-  handleDirectionalKeyDown(event.code);
+  const delta = MOVE_KEY_DELTAS[event.code];
+  if (!delta) return;
+  registerHoldMove(event.code, delta[0], delta[1]);
 });
 
 window.addEventListener('keyup', (event) => {
-  handleDirectionalKeyUp(event.code);
+  clearHoldMove(event.code);
 });
 
 socket.on('connect', () => {
   state.myId = socket.id;
+  state.chat.typingSent = false;
   reconnectEl.classList.add('hidden');
 
   if (state.hasJoinedOnce && state.myPseudo) {
-    socket.emit('player:join', { pseudo: state.myPseudo });
+    socket.emit('player:join', {
+      pseudo: state.myPseudo,
+      avatar: state.myAvatar,
+      colorIndex: state.myColorIndex,
+    });
   }
 });
 
 socket.on('disconnect', () => {
   clearAllHoldMoves();
+  state.chat.typingSent = false;
   if (state.hasJoinedOnce) {
     reconnectEl.classList.remove('hidden');
   }
@@ -1271,16 +1599,12 @@ socket.on('disconnect', () => {
 
 socket.on('error:join', (payload = {}) => {
   state.phase = 'lobby';
-  showLobby(payload.message || 'Impossible de rejoindre.');
+  lobbyEl.classList.remove('hidden');
+  joinErrorEl.textContent = payload.message || 'Impossible de rejoindre.';
 });
 
-socket.on('game:state', (payload) => {
-  applySnapshot(payload);
-});
-
-socket.on('game:new', (payload) => {
-  applySnapshot(payload);
-});
+socket.on('game:state', applySnapshot);
+socket.on('game:new', applySnapshot);
 
 socket.on('player:joined', (payload) => {
   applyPlayerPayload(payload);
@@ -1290,6 +1614,16 @@ socket.on('player:left', (payload) => {
   state.players.delete(payload.id);
 });
 
+socket.on('chat:message', (payload) => {
+  appendChatMessage(payload);
+});
+
+socket.on('chat:typing', (payload = {}) => {
+  const player = state.players.get(payload.id);
+  if (!player) return;
+  player.isTyping = Boolean(payload.active);
+});
+
 socket.on('player:moved', (payload) => {
   updateLocalPlayerFromServerMove(payload.id, payload.x, payload.y);
 });
@@ -1297,21 +1631,12 @@ socket.on('player:moved', (payload) => {
 socket.on('cells:revealed', (payload) => {
   for (const cell of payload.cells || []) {
     const i = idx(cell.x, cell.y);
-
     if (state.grid[i] === -2 && cell.value >= 0) {
       state.revealedSafeCount += 1;
     }
-
     state.grid[i] = cell.value;
     state.flags.delete(i);
-
-    if (cell.value === -1) {
-      state.explodedCells.add(i);
-    }
-  }
-
-  if ((payload.cells || []).length > 0) {
-    startDigAnimationForPseudo(payload.triggeredBy);
+    if (cell.value === -1) state.explodedCells.add(i);
   }
 });
 
@@ -1326,17 +1651,11 @@ socket.on('cell:flagged', (payload) => {
 
 socket.on('bomb:exploded', (payload) => {
   state.explosions = payload.count;
-  const i = idx(payload.x, payload.y);
-  state.explodedCells.add(i);
-
-  pushExplosionFx(payload.x, payload.y);
+  state.explodedCells.add(idx(payload.x, payload.y));
+  state.activeExplosions.push({ x: payload.x, y: payload.y, startedAt: Date.now() });
 
   const player = state.players.get(payload.id);
-  if (player) {
-    player.stunnedUntil = payload.stunEndTime || Date.now() + 2000;
-    startDigAnimationForPseudo(player.pseudo);
-  }
-
+  if (player) player.stunnedUntil = payload.stunEndTime || Date.now() + 2000;
   if (payload.id === state.myId) {
     state.me.stunnedUntil = payload.stunEndTime || Date.now() + 2000;
   }
@@ -1350,6 +1669,22 @@ const rememberedPseudo = localStorage.getItem('pseudo');
 if (rememberedPseudo) {
   pseudoInputEl.value = rememberedPseudo;
 }
+
+setupAvatarPicker();
+setupColorPicker();
+
+const rememberedAvatar = localStorage.getItem('avatar');
+if (rememberedAvatar !== null) {
+  setMyAvatar(rememberedAvatar, false);
+}
+
+const rememberedColorIndex = localStorage.getItem('colorIndex');
+if (rememberedColorIndex !== null) {
+  setMyColorIndex(rememberedColorIndex, false);
+}
+
+setChatMessages([]);
+setChatOpen(false, false);
 
 resizeCanvas();
 startGameLoop();

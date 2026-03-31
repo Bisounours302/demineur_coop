@@ -11,6 +11,9 @@ const MAX_PLAYERS = 10;
 const MAX_EXPLOSIONS = 10;
 const STUN_DURATION_MS = 2000;
 const STATS_DURATION_MS = 60_000;
+const AVATAR_COUNT = 6;
+const MAX_CHAT_MESSAGES = 100;
+const MAX_CHAT_MESSAGE_LENGTH = 180;
 
 const PLAYER_COLORS = [
   '#FF6B6B',
@@ -21,6 +24,18 @@ const PLAYER_COLORS = [
   '#DDA0DD',
   '#98D8C8',
   '#F7DC6F',
+  '#FF8A80',
+  '#80D8FF',
+  '#B9F6CA',
+  '#FFD180',
+  '#EA80FC',
+  '#A7FFEB',
+  '#FF9E80',
+  '#82B1FF',
+  '#CCFF90',
+  '#FFAB91',
+  '#B388FF',
+  '#84FFFF',
 ];
 
 const state = {
@@ -38,6 +53,8 @@ const state = {
   statsEndsAt: null,
   seed: 0,
   result: null,
+  pseudoProgress: new Map(),
+  chatMessages: [],
 };
 
 const stunTimers = new Map();
@@ -72,6 +89,26 @@ function colorForPseudo(pseudo) {
   return PLAYER_COLORS[hashPseudo(pseudo) % PLAYER_COLORS.length];
 }
 
+function normalizeAvatarChoice(avatarChoice) {
+  const value = Number(avatarChoice);
+  if (!Number.isInteger(value)) return 0;
+  if (value < 0 || value >= AVATAR_COUNT) return 0;
+  return value;
+}
+
+function normalizeColorChoice(colorChoice) {
+  const value = Number(colorChoice);
+  if (!Number.isInteger(value)) return 0;
+  if (value < 0 || value >= PLAYER_COLORS.length) return 0;
+  return value;
+}
+
+function normalizeChatMessage(message) {
+  const text = String(message || '').replace(/\s+/g, ' ').trim();
+  if (!text) return '';
+  return text.slice(0, MAX_CHAT_MESSAGE_LENGTH);
+}
+
 function clearStatsTimer() {
   if (state.statsTimeout) {
     clearTimeout(state.statsTimeout);
@@ -93,6 +130,35 @@ function refreshStun(player) {
     player.stunned = false;
     player.stunEndTime = 0;
   }
+}
+
+function numberOrFallback(value, fallback = 0) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function savePseudoProgressFromPlayer(player) {
+  if (!player || !player.pseudo) return;
+
+  refreshStun(player);
+  state.pseudoProgress.set(player.pseudo, {
+    x: player.x,
+    y: player.y,
+    avatar: normalizeAvatarChoice(player.avatar),
+    colorIndex: normalizeColorChoice(player.colorIndex),
+    stunned: Boolean(player.stunned),
+    stunEndTime: player.stunEndTime || 0,
+    cellsRevealed: Math.max(0, numberOrFallback(player.cellsRevealed, 0)),
+    flagsPlaced: Math.max(0, numberOrFallback(player.flagsPlaced, 0)),
+    bombsTriggered: Math.max(0, numberOrFallback(player.bombsTriggered, 0)),
+    correctFlags: Math.max(0, numberOrFallback(player.correctFlags, 0)),
+    spawnZone: player.spawnZone,
+  });
+}
+
+function colorForPlayer(player) {
+  const colorIndex = normalizeColorChoice(player?.colorIndex);
+  return PLAYER_COLORS[colorIndex] || colorForPseudo(String(player?.pseudo || ''));
 }
 
 function getZoneCellsByCenter() {
@@ -164,6 +230,26 @@ function pickSpawnPosition(zoneIndex, zoneCells) {
   return { x: fallback[0], y: fallback[1] };
 }
 
+function scheduleStunRelease(player, durationMs) {
+  clearStunTimer(player.id);
+  if (durationMs <= 0) {
+    player.stunned = false;
+    player.stunEndTime = 0;
+    return;
+  }
+
+  const timeout = setTimeout(() => {
+    const latest = state.players.get(player.id);
+    if (!latest) return;
+    latest.stunned = false;
+    latest.stunEndTime = 0;
+    stunTimers.delete(player.id);
+    savePseudoProgressFromPlayer(latest);
+  }, durationMs);
+
+  stunTimers.set(player.id, timeout);
+}
+
 function resetPlayerForNewGame(player, zoneCells) {
   clearStunTimer(player.id);
   const zone = chooseZoneForSpawn();
@@ -178,13 +264,18 @@ function resetPlayerForNewGame(player, zoneCells) {
   player.bombsTriggered = 0;
   player.correctFlags = 0;
   player.spawnZone = zone;
+  player.isTyping = false;
+  savePseudoProgressFromPlayer(player);
 }
 
 function publicPlayer(player) {
   refreshStun(player);
+  const colorIndex = normalizeColorChoice(player.colorIndex);
   return {
     id: player.id,
     pseudo: player.pseudo,
+    avatar: normalizeAvatarChoice(player.avatar),
+    colorIndex,
     x: player.x,
     y: player.y,
     stunned: player.stunned,
@@ -194,7 +285,8 @@ function publicPlayer(player) {
     bombsTriggered: player.bombsTriggered,
     correctFlags: player.correctFlags,
     spawnZone: player.spawnZone,
-    color: colorForPseudo(player.pseudo),
+    isTyping: Boolean(player.isTyping),
+    color: PLAYER_COLORS[colorIndex] || colorForPseudo(player.pseudo),
   };
 }
 
@@ -216,6 +308,10 @@ function flagsPayload() {
     flags.push({ x, y, pseudo });
   }
   return flags;
+}
+
+function chatMessagesPayload() {
+  return state.chatMessages.slice();
 }
 
 function getPublicState(forSocketId = null) {
@@ -244,6 +340,7 @@ function getPublicState(forSocketId = null) {
     },
     revealed: revealedCellsPayload(),
     flags: flagsPayload(),
+    chatMessages: chatMessagesPayload(),
     players: Array.from(state.players.values()).map(publicPlayer),
   };
 }
@@ -263,6 +360,7 @@ function initNewGame(seed = randomSeed()) {
   state.endTime = null;
   state.seed = map.seed;
   state.result = null;
+  state.pseudoProgress = new Map();
 
   const zoneCells = getZoneCellsByCenter();
   for (const player of state.players.values()) {
@@ -272,7 +370,7 @@ function initNewGame(seed = randomSeed()) {
   return getPublicState();
 }
 
-function addPlayer(socketId, pseudo) {
+function addPlayer(socketId, pseudo, avatarChoice = 0, colorChoice) {
   if (!state.map) {
     initNewGame();
   }
@@ -301,31 +399,114 @@ function addPlayer(socketId, pseudo) {
   }
 
   const zoneCells = getZoneCellsByCenter();
-  const zone = chooseZoneForSpawn();
+  const savedProgress = state.pseudoProgress.get(cleanPseudo);
+  const zone = Number.isInteger(savedProgress?.spawnZone)
+    ? savedProgress.spawnZone
+    : chooseZoneForSpawn();
   const spawn = pickSpawnPosition(zone, zoneCells);
+
+  const savedX = numberOrFallback(savedProgress?.x, spawn.x);
+  const savedY = numberOrFallback(savedProgress?.y, spawn.y);
+  const canRestoreCoords = Number.isInteger(savedX) && Number.isInteger(savedY) && isInBounds(savedX, savedY);
+  const savedStunEnd = Math.max(0, numberOrFallback(savedProgress?.stunEndTime, 0));
+  const savedStunned = Boolean(savedProgress?.stunned) && savedStunEnd > Date.now();
+  const hasExplicitAvatarChoice = Number.isInteger(Number(avatarChoice));
+  const hasExplicitColorChoice = Number.isInteger(Number(colorChoice));
+  const avatarToUse = hasExplicitAvatarChoice
+    ? normalizeAvatarChoice(avatarChoice)
+    : normalizeAvatarChoice(savedProgress?.avatar);
+  const colorIndexToUse = hasExplicitColorChoice
+    ? normalizeColorChoice(colorChoice)
+    : (savedProgress && savedProgress.colorIndex !== undefined)
+      ? normalizeColorChoice(savedProgress.colorIndex)
+      : (hashPseudo(cleanPseudo) % PLAYER_COLORS.length);
 
   const player = {
     id: socketId,
     pseudo: cleanPseudo,
-    x: spawn.x,
-    y: spawn.y,
-    stunned: false,
-    stunEndTime: 0,
-    cellsRevealed: 0,
-    flagsPlaced: 0,
-    bombsTriggered: 0,
-    correctFlags: 0,
+    avatar: avatarToUse,
+    colorIndex: colorIndexToUse,
+    x: canRestoreCoords ? savedX : spawn.x,
+    y: canRestoreCoords ? savedY : spawn.y,
+    stunned: savedStunned,
+    stunEndTime: savedStunned ? savedStunEnd : 0,
+    cellsRevealed: Math.max(0, numberOrFallback(savedProgress?.cellsRevealed, 0)),
+    flagsPlaced: Math.max(0, numberOrFallback(savedProgress?.flagsPlaced, 0)),
+    bombsTriggered: Math.max(0, numberOrFallback(savedProgress?.bombsTriggered, 0)),
+    correctFlags: Math.max(0, numberOrFallback(savedProgress?.correctFlags, 0)),
     spawnZone: zone,
+    isTyping: false,
   };
 
   state.players.set(socketId, player);
+  if (savedStunned) {
+    scheduleStunRelease(player, Math.max(0, savedStunEnd - Date.now()));
+  }
+  savePseudoProgressFromPlayer(player);
 
   return { ok: true, player: publicPlayer(player) };
 }
 
 function removePlayer(socketId) {
+  const player = state.players.get(socketId);
+  if (!player) {
+    return false;
+  }
+
+  player.isTyping = false;
+
+  if (state.phase === 'playing') {
+    savePseudoProgressFromPlayer(player);
+  } else {
+    state.pseudoProgress.delete(player.pseudo);
+  }
+
   clearStunTimer(socketId);
   return state.players.delete(socketId);
+}
+
+function setPlayerTyping(socketId, active) {
+  const player = state.players.get(socketId);
+  if (!player) {
+    return { ok: false, error: 'Joueur introuvable.' };
+  }
+
+  player.isTyping = Boolean(active);
+  return {
+    ok: true,
+    player: publicPlayer(player),
+  };
+}
+
+function addChatMessage(socketId, message) {
+  const player = state.players.get(socketId);
+  if (!player) {
+    return { ok: false, error: 'Joueur introuvable.' };
+  }
+
+  const text = normalizeChatMessage(message);
+  if (!text) {
+    return { ok: false, error: 'Message vide.' };
+  }
+
+  const entry = {
+    id: `${Date.now()}-${Math.floor(Math.random() * 1e6)}`,
+    pseudo: player.pseudo,
+    color: colorForPlayer(player),
+    text,
+    at: Date.now(),
+  };
+
+  state.chatMessages.push(entry);
+  if (state.chatMessages.length > MAX_CHAT_MESSAGES) {
+    state.chatMessages = state.chatMessages.slice(-MAX_CHAT_MESSAGES);
+  }
+
+  return {
+    ok: true,
+    message: entry,
+    player: publicPlayer(player),
+  };
 }
 
 function validateAction(socketId, x, y, distanceError = 'Case hors rayon d action.') {
@@ -360,7 +541,13 @@ function applyFlagCountForPseudo(pseudo, delta) {
   for (const p of state.players.values()) {
     if (p.pseudo !== pseudo) continue;
     p.flagsPlaced = Math.max(0, p.flagsPlaced + delta);
-    return;
+    break;
+  }
+
+  const saved = state.pseudoProgress.get(pseudo);
+  if (saved) {
+    saved.flagsPlaced = Math.max(0, numberOrFallback(saved.flagsPlaced, 0) + delta);
+    state.pseudoProgress.set(pseudo, saved);
   }
 }
 
@@ -373,6 +560,7 @@ function movePlayer(socketId, x, y) {
   const { player } = validated;
   player.x = x;
   player.y = y;
+  savePseudoProgressFromPlayer(player);
 
   return { ok: true, player: publicPlayer(player) };
 }
@@ -384,7 +572,6 @@ function removeFlagAtIndex(i) {
   }
 
   applyFlagCountForPseudo(ownerPseudo, -1);
-
   state.flagged.delete(i);
 }
 
@@ -411,19 +598,10 @@ function applyRevealCells(player, coords) {
 }
 
 function setPlayerStunned(player) {
-  clearStunTimer(player.id);
   player.stunned = true;
   player.stunEndTime = Date.now() + STUN_DURATION_MS;
-
-  const timeout = setTimeout(() => {
-    const latest = state.players.get(player.id);
-    if (!latest) return;
-    latest.stunned = false;
-    latest.stunEndTime = 0;
-    stunTimers.delete(player.id);
-  }, STUN_DURATION_MS);
-
-  stunTimers.set(player.id, timeout);
+  scheduleStunRelease(player, STUN_DURATION_MS);
+  savePseudoProgressFromPlayer(player);
 }
 
 function checkLoseCondition() {
@@ -462,6 +640,7 @@ function revealCell(socketId, x, y) {
       y,
       at: Date.now(),
     });
+    savePseudoProgressFromPlayer(player);
 
     return {
       ok: true,
@@ -480,6 +659,7 @@ function revealCell(socketId, x, y) {
     : [[x, y]];
 
   const cells = applyRevealCells(player, coords);
+  savePseudoProgressFromPlayer(player);
 
   return {
     ok: true,
@@ -506,6 +686,7 @@ function toggleFlag(socketId, x, y) {
     const owner = state.flagged.get(i);
     applyFlagCountForPseudo(owner, -1);
     state.flagged.delete(i);
+    savePseudoProgressFromPlayer(player);
     return {
       ok: true,
       x,
@@ -517,6 +698,7 @@ function toggleFlag(socketId, x, y) {
 
   state.flagged.set(i, player.pseudo);
   player.flagsPlaced += 1;
+  savePseudoProgressFromPlayer(player);
 
   return {
     ok: true,
@@ -555,7 +737,7 @@ function computeFinalStats() {
       return {
         id: p.id,
         pseudo: p.pseudo,
-        color: colorForPseudo(p.pseudo),
+        color: colorForPlayer(p),
         cellsRevealed: p.cellsRevealed,
         bombsTriggered: p.bombsTriggered,
         flagsCorrect: f.correct,
@@ -594,6 +776,11 @@ function endGame(result) {
   state.result = result;
   state.endTime = Date.now();
   state.statsEndsAt = Date.now() + STATS_DURATION_MS;
+  state.pseudoProgress = new Map();
+
+  for (const p of state.players.values()) {
+    p.isTyping = false;
+  }
 
   return computeFinalStats();
 }
@@ -610,6 +797,8 @@ module.exports = {
   STUN_DURATION_MS,
   STATS_DURATION_MS,
   colorForPseudo,
+  addChatMessage,
+  setPlayerTyping,
   initNewGame,
   addPlayer,
   removePlayer,

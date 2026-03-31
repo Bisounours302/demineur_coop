@@ -17,14 +17,9 @@ const io = new Server(server, {
 
 app.use(express.static(path.join(__dirname, 'public')));
 
-function startNewRoundAndBroadcast() {
-  const snapshot = game.initNewGame();
-  io.emit('game:new', snapshot);
-}
-
 function scheduleNextRound() {
   const timeout = setTimeout(() => {
-    startNewRoundAndBroadcast();
+    io.emit('game:new', game.initNewGame());
   }, game.STATS_DURATION_MS);
 
   game.setStatsTimeout(timeout);
@@ -51,10 +46,14 @@ function sanitizeCoords(payload) {
   };
 }
 
+function sanitizeChatText(payload) {
+  return String(payload?.text || '');
+}
+
 io.on('connection', (socket) => {
   socket.on('player:join', (payload = {}) => {
     const pseudo = String(payload.pseudo || '').trim();
-    const added = game.addPlayer(socket.id, pseudo);
+    const added = game.addPlayer(socket.id, pseudo, payload.avatar, payload.colorIndex);
 
     if (!added.ok) {
       socket.emit('error:join', { message: added.error });
@@ -123,6 +122,23 @@ io.on('connection', (socket) => {
       pseudo: flagged.pseudo,
       active: flagged.active,
     });
+  });
+
+  socket.on('chat:typing', (payload = {}) => {
+    const typing = game.setPlayerTyping(socket.id, Boolean(payload.active));
+    if (!typing.ok) return;
+
+    io.emit('chat:typing', {
+      id: typing.player.id,
+      active: Boolean(typing.player.isTyping),
+    });
+  });
+
+  socket.on('chat:send', (payload = {}) => {
+    const sent = game.addChatMessage(socket.id, sanitizeChatText(payload));
+    if (!sent.ok) return;
+
+    io.emit('chat:message', sent.message);
   });
 
   socket.on('disconnect', () => {
