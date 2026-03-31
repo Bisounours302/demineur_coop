@@ -471,7 +471,6 @@ const state = {
   holdControls: new Map(),
   activeExplosions: [],
   activeDigs: new Map(),
-  pendingRevealBatches: [],
   explodedCells: new Set(),
   hasJoinedOnce: false,
   loopStarted: false,
@@ -838,10 +837,6 @@ function shovelSheetForPlayer(player) {
   return assets.shovels[fallback] || null;
 }
 
-function digDurationMs() {
-  return DIG_FRAME_MS * DIG_FRAMES * DIG_LOOPS;
-}
-
 function playerHasLoadedDigAnimation(player) {
   const sheet = shovelSheetForPlayer(player);
   return Boolean(sheet && sheet.loaded);
@@ -873,21 +868,6 @@ function applyRevealedCells(cells) {
     state.flags.delete(i);
     if (cell.value === -1) state.explodedCells.add(i);
   }
-}
-
-function flushPendingReveals(now) {
-  if (!state.pendingRevealBatches.length) return;
-
-  const remaining = [];
-  for (const batch of state.pendingRevealBatches) {
-    if (batch.applyAt <= now) {
-      applyRevealedCells(batch.cells);
-    } else {
-      remaining.push(batch);
-    }
-  }
-
-  state.pendingRevealBatches = remaining;
 }
 
 function getSpriteFrame(player, now) {
@@ -1347,7 +1327,6 @@ function applySnapshot(payload) {
   state.explodedCells = new Set();
   state.activeExplosions = [];
   state.activeDigs = new Map();
-  state.pendingRevealBatches = [];
 
   for (const cell of payload.revealed || []) {
     const i = idx(cell.x, cell.y);
@@ -1389,21 +1368,6 @@ function getActionTargetCell() {
   if (!me) return { x: state.me.x, y: state.me.y };
 
   return { x: me.x, y: me.y };
-}
-
-function cellFromPointer(clientX, clientY) {
-  const rect = canvas.getBoundingClientRect();
-  const sx = clientX - rect.left;
-  const sy = clientY - rect.top;
-
-  const worldX = state.camera.x + sx / state.camera.scale;
-  const worldY = state.camera.y + sy / state.camera.scale;
-
-  const x = Math.floor(worldX / TILE_SIZE);
-  const y = Math.floor(worldY / TILE_SIZE);
-  if (!isInBounds(x, y)) return null;
-
-  return { x, y };
 }
 
 function emitCellAction(eventName, target = null) {
@@ -1497,8 +1461,6 @@ function startGameLoop() {
   state.loopStarted = true;
 
   function tick() {
-    const now = Date.now();
-    flushPendingReveals(now);
     updateCamera();
     processInputQueue();
     renderFrame();
@@ -1571,19 +1533,13 @@ canvas.addEventListener('mousedown', (event) => {
 
   if (event.button === 0) {
     event.preventDefault();
-    const target = cellFromPointer(event.clientX, event.clientY);
-    if (target) {
-      emitCellAction('cell:reveal', target);
-    }
+    emitCellAction('cell:reveal');
     return;
   }
 
   if (event.button === 2) {
     event.preventDefault();
-    const target = cellFromPointer(event.clientX, event.clientY);
-    if (target) {
-      emitCellAction('cell:flag', target);
-    }
+    emitCellAction('cell:flag');
     return;
   }
 
@@ -1716,7 +1672,6 @@ socket.on('player:joined', (payload) => {
 
 socket.on('player:left', (payload) => {
   state.activeDigs.delete(payload.id);
-  state.pendingRevealBatches = state.pendingRevealBatches.filter((batch) => batch.playerId !== payload.id);
   state.players.delete(payload.id);
 });
 
@@ -1735,20 +1690,12 @@ socket.on('player:moved', (payload) => {
 });
 
 socket.on('cells:revealed', (payload) => {
-  const now = Date.now();
   const playerId = payload?.playerId;
   const player = playerId ? state.players.get(playerId) : null;
   const hasDigAnimation = Boolean(player && playerHasLoadedDigAnimation(player));
 
   if (playerId && hasDigAnimation) {
-    const delay = digDurationMs();
-    state.activeDigs.set(playerId, now);
-    state.pendingRevealBatches.push({
-      applyAt: now + delay,
-      cells: payload.cells || [],
-      playerId,
-    });
-    return;
+    state.activeDigs.set(playerId, Date.now());
   }
 
   applyRevealedCells(payload.cells || []);
