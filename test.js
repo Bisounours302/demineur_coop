@@ -4,7 +4,7 @@
 
 const {
   generateMap, generateValidMap, floodFillReveal,
-  getStartZoneCenters, idx, GRID_W, GRID_H, TOTAL_CELLS, TARGET_BOMBS
+  idx, GRID_W, GRID_H, TOTAL_CELLS, TARGET_BOMBS
 } = require('./generator');
 
 let passed = 0;

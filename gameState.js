@@ -791,12 +791,7 @@ function setStatsTimeout(timeout) {
 }
 
 module.exports = {
-  state,
-  MAX_PLAYERS,
-  MAX_EXPLOSIONS,
-  STUN_DURATION_MS,
   STATS_DURATION_MS,
-  colorForPseudo,
   addChatMessage,
   setPlayerTyping,
   initNewGame,
@@ -805,9 +800,6 @@ module.exports = {
   movePlayer,
   revealCell,
   toggleFlag,
-  checkWinCondition,
-  checkLoseCondition,
-  computeFinalStats,
   endGame,
   setStatsTimeout,
   getPublicState,

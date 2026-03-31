@@ -18,13 +18,6 @@ const BOMB_RATIO = 0.17;
 const TARGET_BOMBS = Math.round(TOTAL_CELLS * BOMB_RATIO); // ~833
 const SAFE_RADIUS = 3;       // buffer around start zones (guaranteed no bomb)
 const START_ZONE_RADIUS = 2; // radius of the red start zone itself
-const NUM_START_ZONES = 5;
-
-// Cell type constants
-const CELL = {
-  HIDDEN: 0,
-  BOMB: -1,
-};
 
 // ─── Utility helpers ─────────────────────────────────────────────────────────
 
@@ -299,9 +292,7 @@ module.exports = {
   generateMap,
   generateValidMap,
   floodFillReveal,
-  getStartZoneCenters,
   idx,
-  neighbours,
   GRID_W,
   GRID_H,
   TOTAL_CELLS,
