@@ -10,6 +10,37 @@ const {
   normalizeChatMessage,
 } = require('./sharedUtils');
 
+/**
+ * @typedef {Object} SessionPlayer
+ * @property {string} id
+ * @property {string} pseudo
+ * @property {number} avatar
+ * @property {number} colorIndex
+ * @property {number} x
+ * @property {number} y
+ * @property {boolean} isTyping
+ */
+
+/**
+ * @typedef {Object} SessionState
+ * @property {string} phase
+ * @property {Map<string, SessionPlayer>} players
+ * @property {Map<string, Object>} pseudoProgress
+ * @property {Array<Object>} chatMessages
+ * @property {number} startTime
+ */
+
+/**
+ * @typedef {Object} SessionCoreOptions
+ * @property {number} [maxPlayers]
+ * @property {number} [maxChatMessages]
+ * @property {number} [maxChatMessageLength]
+ * @property {(state: SessionState, x: number, y: number) => boolean} isInBounds
+ * @property {(player: SessionPlayer, x: number, y: number) => boolean} [isAdjacentToPlayer]
+ * @property {(state: SessionState, pseudo: string) => (boolean|{ok:boolean,error?:string})} [canJoin]
+ * @property {(state: SessionState, player: SessionPlayer) => (boolean|{ok:boolean,error?:string})} [canAct]
+ */
+
 function defaultIsAdjacentToPlayer(player, x, y) {
   return Math.abs(player.x - x) <= 1 && Math.abs(player.y - y) <= 1;
 }
@@ -33,6 +64,10 @@ function normalizeCheckResult(result, fallbackError) {
   return { ok: false, error: fallbackError };
 }
 
+/**
+ * Build a reusable realtime session core shared by game modes.
+ * @param {SessionCoreOptions & Record<string, any>} options
+ */
 function createSessionCore(options = {}) {
   const {
     maxPlayers = 20,
@@ -57,6 +92,7 @@ function createSessionCore(options = {}) {
     throw new Error('createSessionCore requires an isInBounds function.');
   }
 
+  /** @type {SessionState} */
   const state = {
     phase: 'playing',
     players: new Map(),

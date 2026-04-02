@@ -15,19 +15,22 @@ cd /path/to/project
 # 2. Installer les dependances
 npm install
 
-# 3. Tester le generateur (doit afficher 18 tests passes)
+# 3. Generer les bundles client (esbuild)
+npm run build
+
+# 4. Tester le generateur (doit afficher 18 tests passes)
 node test.js
 
-# 4. Lancer en developpement (port 3000)
+# 5. Lancer en developpement (port 3000)
 npm run dev
 
-# 5. En production — demarrer avec PM2
+# 6. En production — demarrer avec PM2
 npm install -g pm2
 pm2 start ecosystem.config.js
 pm2 save
 pm2 startup   # pour redemarrage automatique au boot
 
-# 6. Configurer Nginx (voir nginx.conf.example)
+# 7. Configurer Nginx (voir nginx.conf.example)
 # Ajouter le bloc location dans /etc/nginx/sites-available/ton-domaine
 sudo nginx -t
 sudo systemctl reload nginx
@@ -51,20 +54,33 @@ Points d entree compatibilite:
 
 - `gameSession.js`: wrapper vers le module demineur
 - `paintSession.js`: wrapper vers le module paint
+- `server/socket/events.js`: conventions de noms d evenements Socket.io
+- `server/socket/registerMinesSocketHandlers.js`: handlers Socket.io specifiques demineur
+- `server/socket/registerPaintSocketHandlers.js`: handlers Socket.io specifiques paint
 - `server.js`: orchestration Express + Socket.io + lobbies par mode
 
-Base client (reutilisable):
+Client modulaire + build:
 
-- `public/base-client-common.js`: utilitaires/constantes partages (personnages, deplacements, chat)
+- `src/client/core/shared.js`: utilitaires front communs (couleurs, avatars, conversion, clavier)
+- `src/client/core/events.js`: noms d evenements Socket.io partages
+- `src/client/modes/mines/index.js`: entree client demineur
+- `src/client/modes/paint/index.js`: entree client paint
+- `src/client/modes/skeleton/index.js`: entree client squelette
+- `scripts/build-client.js`: bundling esbuild vers `public/*.js`
 
 Clients de jeux (separes):
 
-- `public/client.js`: client demineur
-- `public/paint-client.js`: client paint
-- `public/skeleton-client.js`: client squelette (base reutilisable)
+- `public/client.js`: bundle client demineur genere
+- `public/paint-client.js`: bundle client paint genere
+- `public/skeleton-client.js`: bundle client squelette genere
 - `public/index.html` et `public/paint.html`: pages dediees
 - `public/skeleton.html`: page squelette de reference
 - `public/style.css`: style partage HUD, chat, overlays, palette
+
+Convention evenements Socket.io:
+
+- Tous les evenements sont prefixes par mode (`mines:*`, `paint:*`, `skeleton:*`)
+- Exemples: `mines:join`, `mines:cell:reveal`, `paint:pixel:place`
 
 ## Ajouter un nouveau jeu
 
@@ -96,9 +112,9 @@ newMode: {
 }
 ```
 
-4. Ajouter les actions specifiques du mode dans `io.on('connection')` (comme `paint:place` pour le paint).
+4. Ajouter les actions specifiques du mode dans un module dedie de `server/socket/` (comme `registerPaintSocketHandlers.js`).
 5. Exposer la page avec une route Express (`app.get('/<tonJeu>', ...)`) et ajouter les boutons de navigation entre modes.
-6. Reutiliser `public/base-client-common.js` pour conserver les memes personnages/deplacements/chat.
+6. Ajouter un client mode dans `src/client/modes/<tonJeu>/index.js`, puis inclure ce bundle dans `scripts/build-client.js`.
 
 ## Notes gameplay
 
@@ -109,3 +125,9 @@ newMode: {
 - Ecran de stats 60 secondes puis nouvelle partie automatique
 - Mode paint: sauvegarde auto toutes les 5 minutes uniquement si la carte a change
 - Sauvegardes paint: `data/paint/<lobbyId>.json` (restaurees automatiquement au demarrage)
+
+## Securite reseau
+
+- Le CORS Socket.io est filtre par liste d origines autorisees (plus de `origin: *`).
+- Variable optionnelle: `ALLOWED_ORIGINS` (CSV), exemple:
+	`ALLOWED_ORIGINS=https://demineur.everbloom.fr,https://paint.everbloom.fr`

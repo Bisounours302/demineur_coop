@@ -3,12 +3,17 @@
   "version": "1.0.0",
   "main": "server.js",
   "scripts": {
+    "build": "npm run build:client",
+    "build:client": "node scripts/build-client.js",
     "start": "node server.js",
-    "dev": "node --watch server.js",
+    "dev": "npm run build:client && node --watch server.js",
     "test": "node test.js"
   },
   "dependencies": {
     "express": "^4.18.0",
     "socket.io": "^4.7.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.9"
   }
 }

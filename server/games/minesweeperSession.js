@@ -14,6 +14,7 @@ const MAX_PLAYERS = 20;
 const MAX_EXPLOSIONS = 10;
 const STUN_DURATION_MS = 2000;
 const STATS_DURATION_MS = 60_000;
+const MAX_PSEUDO_PROGRESS = 500;
 
 function createGameSession() {
   const stunTimers = new Map();
@@ -170,6 +171,11 @@ function createGameSession() {
 
   function savePseudoProgressFromPlayer(player, customState = state) {
     if (!player || !player.pseudo) return;
+
+    if (customState.pseudoProgress.has(player.pseudo)) {
+      customState.pseudoProgress.delete(player.pseudo);
+    }
+
     customState.pseudoProgress.set(player.pseudo, {
       x: player.x,
       y: player.y,
@@ -183,6 +189,12 @@ function createGameSession() {
       correctFlags: Math.max(0, numberOrFallback(player.correctFlags, 0)),
       spawnZone: player.spawnZone,
     });
+
+    while (customState.pseudoProgress.size > MAX_PSEUDO_PROGRESS) {
+      const oldestPseudo = customState.pseudoProgress.keys().next().value;
+      if (!oldestPseudo) break;
+      customState.pseudoProgress.delete(oldestPseudo);
+    }
   }
 
   function getZoneCellsByCenter(customState = state) {

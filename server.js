@@ -5,14 +5,45 @@ const { Server } = require('socket.io');
 
 const { createGameSession, STATS_DURATION_MS } = require('./gameSession');
 const { createPaintSession } = require('./paintSession');
+const { MODE_EVENTS, MINES_ACTION_EVENTS, PAINT_ACTION_EVENTS } = require('./server/socket/events');
+const { registerMinesSocketHandlers } = require('./server/socket/registerMinesSocketHandlers');
+const { registerPaintSocketHandlers } = require('./server/socket/registerPaintSocketHandlers');
 
 const PORT = Number(process.env.PORT) || 3000;
+
+function parseAllowedOrigins(value) {
+  const raw = String(value || '').trim();
+  if (!raw) {
+    return [
+      'https://demineur.everbloom.fr',
+      'https://paint.everbloom.fr',
+      'http://localhost:3000',
+      `http://localhost:${PORT}`,
+    ];
+  }
+
+  return raw
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+}
+
+const ALLOWED_ORIGIN_SET = new Set(parseAllowedOrigins(process.env.ALLOWED_ORIGINS));
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: '*',
+    origin: (origin, callback) => {
+      // Browsers send null/undefined for same-origin or non-CORS websocket upgrades.
+      if (!origin || ALLOWED_ORIGIN_SET.has(origin)) {
+        callback(null, true);
+        return;
+      }
+
+      callback(new Error(`Origin not allowed: ${origin}`));
+    },
+    credentials: true,
   },
 });
 
@@ -43,19 +74,7 @@ const MODE_RUNTIME = {
         lobby.session.setStatsTimeout(null);
       }
     },
-    events: {
-      join: 'player:join',
-      joinError: 'error:join',
-      state: 'game:state',
-      playerJoined: 'player:joined',
-      playerLeft: 'player:left',
-      move: 'player:move',
-      moved: 'player:moved',
-      typingIn: 'chat:typing',
-      typingOut: 'chat:typing',
-      chatIn: 'chat:send',
-      chatOut: 'chat:message',
-    },
+    events: MODE_EVENTS.mines,
   },
   paint: {
     defaultLobbyId: 'paint-global',
@@ -66,19 +85,7 @@ const MODE_RUNTIME = {
         lobby.session.dispose();
       }
     },
-    events: {
-      join: 'paint:join',
-      joinError: 'paint:error:join',
-      state: 'paint:state',
-      playerJoined: 'paint:player:joined',
-      playerLeft: 'paint:player:left',
-      move: 'paint:move',
-      moved: 'paint:player:moved',
-      typingIn: 'paint:chat:typing',
-      typingOut: 'paint:chat:typing',
-      chatIn: 'paint:chat:send',
-      chatOut: 'paint:chat:message',
-    },
+    events: MODE_EVENTS.paint,
   },
 };
 
@@ -174,7 +181,7 @@ function scheduleMinesNextRound(lobbyId) {
   const timeout = setTimeout(() => {
     const activeLobby = runtime.lobbies.get(lobbyId);
     if (!activeLobby) return;
-    io.to(lobbyId).emit('game:new', activeLobby.session.initNewGame());
+    io.to(lobbyId).emit(MINES_ACTION_EVENTS.gameNewOut, activeLobby.session.initNewGame());
   }, STATS_DURATION_MS);
 
   lobby.session.setStatsTimeout(timeout);
@@ -190,7 +197,7 @@ function handleMinesPotentialGameOver(lobbyId, result) {
   const stats = lobby.session.endGame(result);
   if (!stats) return;
 
-  io.to(lobbyId).emit('game:over', {
+  io.to(lobbyId).emit(MINES_ACTION_EVENTS.gameOverOut, {
     result,
     stats,
   });
@@ -291,73 +298,21 @@ io.on('connection', (socket) => {
   registerCommonModeHandlers(socket, 'mines');
   registerCommonModeHandlers(socket, 'paint');
 
-  socket.on('cell:reveal', (payload = {}) => {
-    const ctx = getContextForSocket(socket, 'mines');
-    if (!ctx) return;
-
-    const { x, y } = sanitizeCoords(payload);
-    const result = ctx.lobby.session.revealCell(socket.id, x, y);
-
-    if (!result.ok) {
-      return;
-    }
-
-    if (result.cells.length > 0) {
-      io.to(ctx.lobbyId).emit('cells:revealed', {
-        cells: result.cells,
-        playerId: result.playerId,
-      });
-    }
-
-    if (result.bomb) {
-      io.to(ctx.lobbyId).emit('bomb:exploded', {
-        id: result.playerId,
-        x,
-        y,
-        pseudo: result.triggeredBy,
-        count: result.explosionCount,
-        stunEndTime: result.stunEndTime,
-      });
-    }
-
-    handleMinesPotentialGameOver(ctx.lobbyId, result.gameOver);
+  registerMinesSocketHandlers({
+    socket,
+    io,
+    getContextForSocket,
+    sanitizeCoords,
+    handleMinesPotentialGameOver,
+    minesActionEvents: MINES_ACTION_EVENTS,
   });
 
-  socket.on('cell:flag', (payload = {}) => {
-    const ctx = getContextForSocket(socket, 'mines');
-    if (!ctx) return;
-
-    const { x, y } = sanitizeCoords(payload);
-    const flagged = ctx.lobby.session.toggleFlag(socket.id, x, y);
-
-    if (!flagged.ok) {
-      return;
-    }
-
-    io.to(ctx.lobbyId).emit('cell:flagged', {
-      x: flagged.x,
-      y: flagged.y,
-      pseudo: flagged.pseudo,
-      active: flagged.active,
-    });
-  });
-
-  socket.on('paint:place', (payload = {}) => {
-    const ctx = getContextForSocket(socket, 'paint');
-    if (!ctx) return;
-
-    const { x, y } = sanitizeCoords(payload);
-    const placed = ctx.lobby.session.placePixel(socket.id, x, y, payload.paletteIndex);
-    if (!placed.ok) return;
-
-    io.to(ctx.lobbyId).emit('paint:pixel', {
-      x: placed.x,
-      y: placed.y,
-      paletteIndex: placed.paletteIndex,
-      playerId: placed.playerId,
-      pseudo: placed.pseudo,
-      pixelsPlaced: placed.pixelsPlaced,
-    });
+  registerPaintSocketHandlers({
+    socket,
+    io,
+    getContextForSocket,
+    sanitizeCoords,
+    paintActionEvents: PAINT_ACTION_EVENTS,
   });
 
   socket.on('disconnect', () => {

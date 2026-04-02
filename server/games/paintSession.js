@@ -65,20 +65,16 @@ function createPaintSession(options = {}) {
       return {
         x: canRestoreCoords ? savedProgress.x : spawn.x,
         y: canRestoreCoords ? savedProgress.y : spawn.y,
-        pixelsPlaced: Math.max(0, Number(savedProgress?.pixelsPlaced) || 0),
         placeWindowStartedAt: 0,
         placeCountInWindow: 0,
       };
     },
-    toPublicPlayer: (player) => ({
-      pixelsPlaced: Math.max(0, Number(player.pixelsPlaced) || 0),
-    }),
+    toPublicPlayer: () => ({}),
     getProgressSnapshot: (player) => ({
       x: player.x,
       y: player.y,
       avatar: player.avatar,
       colorIndex: player.colorIndex,
-      pixelsPlaced: Math.max(0, Number(player.pixelsPlaced) || 0),
     }),
     onBeforeRemovePlayer: (player) => {
       player.isTyping = false;
@@ -314,7 +310,6 @@ function createPaintSession(options = {}) {
     if (previous !== normalizedIndex) {
       markMapDirty();
     }
-    player.pixelsPlaced += 1;
 
     return {
       ok: true,
@@ -323,7 +318,6 @@ function createPaintSession(options = {}) {
       paletteIndex: normalizedIndex,
       playerId: player.id,
       pseudo: player.pseudo,
-      pixelsPlaced: player.pixelsPlaced,
     };
   }
 

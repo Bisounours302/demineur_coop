@@ -352,6 +352,28 @@ h1 {
   font-size: 13px;
 }
 
+.palette-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.palette-export-btn {
+  padding: 5px 9px;
+  border-radius: 7px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text);
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.palette-export-btn:hover {
+  border-color: rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.14);
+}
+
 .palette-grid {
   display: grid;
   grid-template-columns: repeat(8, minmax(0, 1fr));

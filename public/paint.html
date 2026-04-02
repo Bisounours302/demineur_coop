@@ -12,7 +12,6 @@
   <div id="hud" class="panel hidden">
     <div class="hud-top">
       <div id="hudPlayers">0 joueurs</div>
-      <div id="hudPixels">Pixels poses: 0</div>
       <div id="hudTime">00:00</div>
       <a class="game-switch-btn" href="/">Demineur</a>
     </div>
@@ -36,7 +35,10 @@
   <aside id="paintPaletteDock" class="palette-dock hidden">
     <div class="palette-header">
       <strong>Palette</strong>
-      <span id="selectedColorLabel">#000000</span>
+      <div class="palette-header-actions">
+        <span id="selectedColorLabel">#000000</span>
+        <button id="downloadPngBtn" type="button" class="palette-export-btn">Telecharger en PNG</button>
+      </div>
     </div>
     <div id="paintPaletteGrid" class="palette-grid" role="radiogroup" aria-label="Palette de couleurs"></div>
   </aside>
@@ -95,7 +97,6 @@
   </div>
 
   <script src="/socket.io/socket.io.js"></script>
-  <script src="/base-client-common.js"></script>
   <script src="/paint-client.js"></script>
 </body>
 </html>
