@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Demineur cooperatif</title>
+  <title>Paint cooperatif geant</title>
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
@@ -11,14 +11,13 @@
 
   <div id="hud" class="panel hidden">
     <div class="hud-top">
-      <div id="hudBombs">Bombes: 0/10</div>
-      <div id="hudTime">00:00</div>
       <div id="hudPlayers">0 joueurs</div>
-      <a class="game-switch-btn" href="/paint">Paint geant</a>
+      <div id="hudPixels">Pixels poses: 0</div>
+      <div id="hudTime">00:00</div>
+      <a class="game-switch-btn" href="/">Demineur</a>
     </div>
     <div class="hud-bottom">
-      <div id="hudFlags">Drapeaux: 0</div>
-      <div id="hudRevealed">Cases revelees: 0/0</div>
+      <div id="hudColor">Couleur: #000000</div>
     </div>
   </div>
 
@@ -34,10 +33,18 @@
     </form>
   </aside>
 
+  <aside id="paintPaletteDock" class="palette-dock hidden">
+    <div class="palette-header">
+      <strong>Palette</strong>
+      <span id="selectedColorLabel">#000000</span>
+    </div>
+    <div id="paintPaletteGrid" class="palette-grid" role="radiogroup" aria-label="Palette de couleurs"></div>
+  </aside>
+
   <div id="lobby" class="overlay">
     <div class="card">
-      <h1>Demineur cooperatif</h1>
-      <p>Choisis ton pseudo pour rejoindre la partie.</p>
+      <h1>Paint cooperatif geant</h1>
+      <p>Choisis ton pseudo puis colorie la map avec les autres joueurs.</p>
       <form id="joinForm" autocomplete="off">
         <div class="join-row">
           <input id="pseudoInput" type="text" maxlength="20" placeholder="Pseudo" required>
@@ -69,13 +76,14 @@
         </div>
 
         <div class="color-picker">
-          <p class="avatar-title">Choisis ta couleur</p>
+          <p class="avatar-title">Couleur du pseudo</p>
           <div id="colorPicker" class="color-grid" role="radiogroup" aria-label="Choix de la couleur"></div>
         </div>
       </form>
-      <p class="switch-row"><a class="game-switch-btn" href="/paint">Rejoindre le paint geant</a></p>
+
+      <p class="switch-row"><a class="game-switch-btn" href="/">Rejoindre le demineur</a></p>
       <p id="joinError" class="error"></p>
-      <p class="hint">Deplacement: ZQSD ou fleches. Clic gauche/Espace: creuser. Clic droit/Shift: drapeau.</p>
+      <p class="hint">Deplacement: ZQSD ou fleches. Palette: clic. Poser: clic gauche ou Espace. Camera: molette + clic molette.</p>
     </div>
   </div>
 
@@ -86,36 +94,8 @@
     </div>
   </div>
 
-  <div id="statsOverlay" class="overlay hidden">
-    <div class="stats-card">
-      <h2 id="statsTitle">Fin de partie</h2>
-      <p id="statsDuration"></p>
-      <canvas id="statsMiniMap" width="420" height="420"></canvas>
-
-      <table>
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>Pseudo</th>
-            <th>Cases revelees</th>
-            <th>Bombes declenchees</th>
-            <th>Drapeaux ✓/✗</th>
-          </tr>
-        </thead>
-        <tbody id="statsTableBody"></tbody>
-      </table>
-
-      <div class="explosions">
-        <h3>Explosions</h3>
-        <ul id="explosionList"></ul>
-      </div>
-
-      <p id="statsCountdown">Nouvelle partie dans: 60s</p>
-    </div>
-  </div>
-
   <script src="/socket.io/socket.io.js"></script>
   <script src="/base-client-common.js"></script>
-  <script src="/client.js"></script>
+  <script src="/paint-client.js"></script>
 </body>
 </html>

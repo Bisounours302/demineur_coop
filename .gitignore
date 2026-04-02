@@ -1,3 +1,4 @@
 node_modules/
 npm-debug.log*
 public/assets/_debug_zoom/
+data/paint/*.json

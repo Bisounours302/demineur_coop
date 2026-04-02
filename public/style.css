@@ -139,6 +139,26 @@ canvas#gameCanvas {
   transition: opacity 140ms ease;
 }
 
+.game-switch-btn {
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text);
+  text-decoration: none;
+  font-size: 12px;
+  line-height: 1;
+}
+
+.game-switch-btn:hover {
+  border-color: rgba(255, 255, 255, 0.45);
+  background: rgba(255, 255, 255, 0.16);
+}
+
 .panel.near-top .hud-top {
   opacity: 0.2;
 }
@@ -306,6 +326,57 @@ h1 {
   font-size: 12px;
 }
 
+.switch-row {
+  margin-top: 8px;
+}
+
+.palette-dock {
+  position: fixed;
+  left: 14px;
+  bottom: 14px;
+  width: min(460px, calc(100vw - 28px));
+  background: rgba(6, 10, 20, 0.22);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
+  backdrop-filter: blur(3px);
+  z-index: 12;
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.palette-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+}
+
+.palette-grid {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.palette-option {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: 6px;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  background: var(--swatch-color, #000000);
+  cursor: pointer;
+}
+
+.palette-option:hover {
+  border-color: rgba(255, 255, 255, 0.46);
+}
+
+.palette-option.selected {
+  outline: 2px solid #ffffff;
+  outline-offset: 1px;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.4) inset;
+}
+
 .stats-card {
   max-height: 94vh;
   overflow: auto;
@@ -398,6 +469,16 @@ td {
     bottom: 10px;
     right: 10px;
     width: calc(100vw - 20px);
+  }
+
+  .palette-dock {
+    left: 10px;
+    bottom: 138px;
+    width: calc(100vw - 20px);
+  }
+
+  .palette-grid {
+    grid-template-columns: repeat(8, minmax(0, 1fr));
   }
 
   .chat-messages {

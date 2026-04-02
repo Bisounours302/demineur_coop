@@ -11,32 +11,21 @@ const WALK_WINDOW_MS = 240;
 
 const ANIM_IDLE_MS = 220;
 const ANIM_RUN_MS = 85;
-const AVATAR_COUNT = 6;
-const CHAT_MAX_MESSAGES = 100;
-const CHAT_CLOSED_VISIBLE_MESSAGES = 3;
-
-const PLAYER_COLORS = [
-  '#FF6B6B',
-  '#4ECDC4',
-  '#45B7D1',
-  '#96CEB4',
-  '#FFEAA7',
-  '#DDA0DD',
-  '#98D8C8',
-  '#F7DC6F',
-  '#FF8A80',
-  '#80D8FF',
-  '#B9F6CA',
-  '#FFD180',
-  '#EA80FC',
-  '#A7FFEB',
-  '#FF9E80',
-  '#82B1FF',
-  '#CCFF90',
-  '#FFAB91',
-  '#B388FF',
-  '#84FFFF',
-];
+const {
+  AVATAR_COUNT,
+  CHAT_CLOSED_VISIBLE_MESSAGES,
+  CHAT_MAX_MESSAGES,
+  MOVE_KEY_DELTAS,
+  PLAYER_COLORS,
+  base64ToTypedArray,
+  clamp,
+  colorForPseudo,
+  hashPseudo,
+  loadImage,
+  msToClock,
+  normalizeAvatarIndex,
+  normalizeColorIndex,
+} = window.ClientShared;
 
 const ANIMAL_FRAME = 32;
 const ANIMAL_COLS = 4;
@@ -73,19 +62,6 @@ const NUMBER_COLORS = {
   8: '#ff44ff',
 };
 
-const MOVE_KEY_DELTAS = {
-  ArrowUp: [0, -1],
-  KeyZ: [0, -1],
-  KeyW: [0, -1],
-  ArrowDown: [0, 1],
-  KeyS: [0, 1],
-  ArrowLeft: [-1, 0],
-  KeyQ: [-1, 0],
-  KeyA: [-1, 0],
-  ArrowRight: [1, 0],
-  KeyD: [1, 0],
-};
-
 const socket = io();
 
 const canvas = document.getElementById('gameCanvas');
@@ -120,71 +96,20 @@ const chatMessagesEl = document.getElementById('chatMessages');
 const chatFormEl = document.getElementById('chatForm');
 const chatInputEl = document.getElementById('chatInput');
 const colorPickerEl = document.getElementById('colorPicker');
-
-function loadImage(src) {
-  const image = new Image();
-  image.loaded = false;
-  image.onload = () => {
-    image.loaded = true;
-  };
-  image.src = src;
-  return image;
-}
-
-function hashPseudo(str) {
-  let h = 0;
-  for (let i = 0; i < str.length; i++) {
-    h = (h * 31 + str.charCodeAt(i)) & 0xffffffff;
-  }
-  return Math.abs(h);
-}
-
-function colorForPseudo(pseudo) {
-  return PLAYER_COLORS[hashPseudo(String(pseudo || '')) % PLAYER_COLORS.length];
-}
-
-function normalizeColorIndex(value) {
-  const index = Number(value);
-  if (!Number.isInteger(index)) return 0;
-  if (index < 0 || index >= PLAYER_COLORS.length) return 0;
-  return index;
-}
+const lobbyIdFromQuery = (() => {
+  const raw = new URLSearchParams(window.location.search).get('lobby');
+  const value = String(raw || '').trim().toLowerCase();
+  return value || null;
+})();
 
 function idx(x, y) {
   return y * GRID_W + x;
-}
-
-function clamp(v, min, max) {
-  return Math.max(min, Math.min(max, v));
 }
 
 function isInBounds(x, y) {
   return x >= 0 && x < GRID_W && y >= 0 && y < GRID_H;
 }
 
-function msToClock(ms) {
-  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
-  const m = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
-  const s = (totalSeconds % 60).toString().padStart(2, '0');
-  return `${m}:${s}`;
-}
-
-function base64ToTypedArray(b64, TypedArray) {
-  const bin = atob(b64);
-  const buffer = new ArrayBuffer(bin.length);
-  const view = new Uint8Array(buffer);
-  for (let i = 0; i < bin.length; i++) {
-    view[i] = bin.charCodeAt(i);
-  }
-  return new TypedArray(buffer);
-}
-
-function normalizeAvatarIndex(value) {
-  const avatar = Number(value);
-  if (!Number.isInteger(avatar)) return 0;
-  if (avatar < 0 || avatar >= AVATAR_COUNT) return 0;
-  return avatar;
-}
 
 function updateAvatarSelectionUI() {
   for (const option of avatarOptionEls) {
@@ -256,6 +181,7 @@ function setupAvatarPicker() {
 
 function drawAvatarPickerPreview(now) {
   if (!avatarPickerEl) return;
+  if (lobbyEl.classList.contains('hidden')) return;
 
   const idleCol = Math.floor(now / ANIM_IDLE_MS) % ANIMAL_COLS;
 
@@ -1501,6 +1427,7 @@ joinFormEl.addEventListener('submit', (event) => {
     pseudo,
     avatar: state.myAvatar,
     colorIndex: state.myColorIndex,
+    lobbyId: lobbyIdFromQuery,
   });
 });
 
@@ -1645,6 +1572,7 @@ socket.on('connect', () => {
       pseudo: state.myPseudo,
       avatar: state.myAvatar,
       colorIndex: state.myColorIndex,
+      lobbyId: lobbyIdFromQuery,
     });
   }
 });

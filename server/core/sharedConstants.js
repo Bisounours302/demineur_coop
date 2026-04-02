@@ -1,0 +1,33 @@
+const AVATAR_COUNT = 6;
+const MAX_CHAT_MESSAGES = 100;
+const MAX_CHAT_MESSAGE_LENGTH = 180;
+
+const PLAYER_COLORS = [
+  '#FF6B6B',
+  '#4ECDC4',
+  '#45B7D1',
+  '#96CEB4',
+  '#FFEAA7',
+  '#DDA0DD',
+  '#98D8C8',
+  '#F7DC6F',
+  '#FF8A80',
+  '#80D8FF',
+  '#B9F6CA',
+  '#FFD180',
+  '#EA80FC',
+  '#A7FFEB',
+  '#FF9E80',
+  '#82B1FF',
+  '#CCFF90',
+  '#FFAB91',
+  '#B388FF',
+  '#84FFFF',
+];
+
+module.exports = {
+  AVATAR_COUNT,
+  MAX_CHAT_MESSAGES,
+  MAX_CHAT_MESSAGE_LENGTH,
+  PLAYER_COLORS,
+};
