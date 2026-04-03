@@ -3,9 +3,9 @@ function registerPaintSocketHandlers({
   io,
   getContextForSocket,
   sanitizeCoords,
-  paintActionEvents,
+  paintEvents,
 }) {
-  socket.on(paintActionEvents.placeIn, (payload = {}) => {
+  socket.on(paintEvents.place, (payload = {}) => {
     const ctx = getContextForSocket(socket, 'paint');
     if (!ctx) return;
 
@@ -13,7 +13,7 @@ function registerPaintSocketHandlers({
     const placed = ctx.lobby.session.placePixel(socket.id, x, y, payload.paletteIndex);
     if (!placed.ok) return;
 
-    io.to(ctx.lobbyId).emit(paintActionEvents.placeOut, {
+    io.to(ctx.lobbyId).emit(paintEvents.pixel, {
       x: placed.x,
       y: placed.y,
       paletteIndex: placed.paletteIndex,

@@ -1,9 +1,9 @@
 function registerSnakeSocketHandlers({
   socket,
   getContextForSocket,
-  snakeActionEvents,
+  snakeEvents,
 }) {
-  socket.on(snakeActionEvents.turnIn, (payload = {}) => {
+  socket.on(snakeEvents.turn, (payload = {}) => {
     const ctx = getContextForSocket(socket, 'snake');
     if (!ctx) return;
 

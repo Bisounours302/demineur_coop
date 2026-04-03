@@ -1,102 +1,119 @@
-# Code Review - Demineur Coop
+# Code Review - Demineur Coop (avril 2026)
 
-## Ce qui est bien
+## Ce qui a été bien fait depuis le dernier état
 
-- **`createSessionCore`** : bon pattern de composition, chaque mode ne définit que ses spécificités
-- **Skeleton template** : ajouter un nouveau mode est guidé, c'est rare et appréciable
-- **Paint persistence** : autosave async avec dirty flag, propre
-- **Generator** : seeded RNG + validation de jouabilité, bien couvert par les tests
-- **Pas de dépendances inutiles** : juste Express + Socket.IO, minimaliste
+- **esbuild ajouté** — build client modulaire, `scripts/build-client.js`, propre
+- **Modules client partagés** — camera, chat, HUD, lobby, input, sprites, tiles sont extraits dans `src/client/modules/`
+- **Events unifiés** — convention `mode:action` cohérente dans `server/socket/events.js` et `src/client/core/events.js`
+- **Socket handlers extraits** — `registerMinesSocketHandlers`, `registerPaintSocketHandlers`, `registerSnakeSocketHandlers` dans `server/socket/`
+- **CORS restreint** — whitelist explicite des domaines, plus de `origin: '*'`
+- **JSDoc sur createSessionCore** — types `SessionPlayer`, `SessionState`, `SessionCoreOptions` documentés
+- **Snake mode ajouté** — proprement intégré via le pattern existant
+- **createSessionCore** — toujours solide, bon pattern de composition
 
 ---
 
-## Les vrais problèmes
+## Ce qui reste à améliorer
 
-### 1. Les clients sont des monolithes (client.js = 1676 lignes, paint-client.js = 1123)
+### 1. Les clients sont toujours des monolithes (problème n°1)
 
-C'est le problème n°1. Chaque client est un seul fichier géant qui mélange :
-- Gestion d'état
-- Rendu canvas
-- Input clavier/souris
-- Réseau Socket.IO
-- UI (chat, lobby, HUD)
-- Animations sprites
+Les modules partagés existent mais ne sont pas assez utilisés. Chaque mode copie-colle encore énormément de code :
 
-Et **beaucoup de code est dupliqué entre les deux clients** : caméra, mouvement, chat, lobby, sprites, rendu des joueurs. `base-client-common.js` ne partage que des constantes et utilitaires triviaux — toute la logique lourde est copiée-collée.
+| Fichier | Lignes |
+|---------|--------|
+| `mines/index.js` | 1573 |
+| `paint/index.js` | 1058 |
+| `snake/index.js` | 739 |
+| `skeleton/index.js` | 682 |
+| **Total client** | **4052** |
 
-**Impact** : chaque bugfix ou changement cosmétique doit être fait 2 (bientôt 3+) fois.
+**Code dupliqué entre les modes** (mines ≈ paint, presque identique) :
 
-### 2. Pas de bundler / modules côté client
+- `applyPlayerPayload()` — ~55 lignes, copié entre mines et paint avec des différences mineures (stunnedUntil vs rien)
+- `spriteDirection()`, `playerSheetForPlayer()`, `getSpriteFrame()` — identiques entre mines et paint
+- `updateCamera()` — ~40 lignes, identique entre mines et paint (snake a une version simplifiée)
+- `processInputQueue()` + `enqueueMove()` + `registerHoldMove()` — identiques entre mines et paint
+- `updateLocalPlayerFromServerMove()` — identique entre mines et paint
+- Gestion drag/zoom (mousedown btn1, mousemove, mouseup, wheel) — identique dans les 3 modes
+- `resizeCanvas()` — identique dans les 3 modes
+- `startGameLoop()` — identique dans les 3 modes
+- Join form handler — identique dans les 3 modes
+- Chat form handler — identique dans les 3 modes
+- Boîte keydown (Tab → chat, Escape → fermer, Enter → focus input) — identique dans les 3 modes
+- Wrapper functions qui délèguent aux modules sans rien ajouter : `setChatMessages`, `appendChatMessage`, `setTypingStatus`, `setChatOpen`, `toggleChat`, `updateAvatarSelectionUI`, `setMyAvatar`, etc. — ~20 lignes de boilerplate identique par mode
+- Init localStorage (pseudo, avatar, colorIndex) — identique dans les 3 modes
 
-Tout est en `<script>` globals. Pas d'import/export, pas de bundler. Ca bloque la factorisation des clients en modules réutilisables. Avec un bundler minimal (esbuild, 0 config), tu pourrais découper en :
+**Estimation** : ~400-500 lignes sont dupliquées entre chaque paire de modes avec position-move (mines/paint).
+
+#### Ce qui devrait être extrait
+
+| Module manquant | Contenu |
+|----------------|---------|
+| `modules/player/applyPlayerPayload.js` | Résolution avatar/color, direction, merge avec previous |
+| `modules/player/spriteRenderer.js` | `spriteDirection`, `getSpriteFrame`, `playerSheetForPlayer`, `drawPlayer` |
+| `modules/camera/cameraControls.js` | `updateCamera` avec mode manuel/auto, `clampCamera`, `centerCameraOnMe` |
+| `modules/input/dragZoom.js` | Middle-click drag, wheel zoom, clamp |
+| `modules/input/moveQueue.js` | `processInputQueue`, `enqueueMove`, wrappers holdMove |
+| `modules/bootstrap/createGameBootstrap.js` | `resizeCanvas`, `startGameLoop`, init localStorage, join form, chat form, keydown/keyup, reconnect lifecycle |
+
+Avec ça, un mode ne contiendrait plus que sa logique spécifique : ~200-400 lignes au lieu de 700-1500.
+
+### 2. Fichiers proxy inutiles à la racine
 
 ```
-client/
-  core/camera.js        # zoom, pan, drag
-  core/sprites.js       # chargement, animation, rendu
-  core/chat.js          # UI chat + socket events
-  core/lobby.js         # join flow, avatar/color picker
-  core/input.js         # clavier, souris
-  core/renderer.js      # boucle de rendu, canvas setup
-  modes/minesweeper.js  # logique spécifique mines
-  modes/paint.js        # logique spécifique paint
+gameSession.js    → require('./server/games/minesweeperSession')
+paintSession.js   → require('./server/games/paintSession')
+snakeSession.js   → require('./server/games/snakeSession')
+gameState.js      → crée une instance default + spread (jamais utilisé directement)
 ```
 
-### 3. `server.js` fait trop de choses
+`server.js` importe déjà via les proxy. Soit supprimer les proxy et importer directement, soit garder les proxy mais supprimer `gameState.js` qui ne sert à rien (il spread une instance default qui n'est jamais consommée).
 
-Il fait 300+ lignes et gère :
-- Configuration Express
-- Routing HTTP
-- Enregistrement des modes
-- Gestion des lobbies
-- Binding de **tous** les événements Socket.IO par mode
-- Graceful shutdown
+### 3. `public/base-client-common.js` est du code mort
 
-Les handlers Socket.IO spécifiques (`cell:reveal`, `paint:place`) devraient vivre dans leurs modules respectifs, pas dans server.js.
+Remplacé par `src/client/core/shared.js` via esbuild. Le fichier existe encore dans `public/` et est peut-être encore référencé par les HTML en fallback. À nettoyer.
 
-### 4. Événements Socket.IO préfixés manuellement
+### 4. server.js contient encore de la logique mines-spécifique
 
-Chaque mode préfixe ses events différemment (`cell:reveal` vs `paint:place` vs `skeleton:action`). Le système `MODE_RUNTIME.events` est une bonne idée mais les noms sont incohérents :
-- mines : `cell:reveal`, `cell:flag` (pas de préfixe mode)
-- paint : `paint:place`, `paint:join` (préfixe mode)
-- skeleton : `skeleton:action` (préfixe mode)
+`scheduleMinesNextRound()` et `handleMinesPotentialGameOver()` sont des fonctions spécifiques au démineur qui vivent dans server.js au lieu de `minesweeperSession.js` ou `registerMinesSocketHandlers.js`. Le snake a déjà `onPlayerDied`/`onPlayerRemoved` dans sa session — le mines devrait faire pareil pour le game over.
 
-Choisis une convention et tiens-la.
+### 5. Snake callbacks dans server.js sont complexes
 
-### 5. Pas de validation d'input côté serveur sur certains chemins
+Le `createSession` du snake dans `MODE_RUNTIME` fait 15 lignes avec des callbacks `onPlayerDied` et `onPlayerRemoved` qui manipulent directement `io.sockets` et appellent `tryRemoveLobby`. Cette logique devrait être dans le handler socket ou la session, pas dans la déclaration du mode.
 
-- `cell:reveal` et `cell:flag` vérifient les bornes via `validateAction`, bien
-- Mais les coordonnées de mouvement dans `createSessionCore.movePlayer` ne sont validées que par `isInBounds` — pas de rate-limiting sur le mouvement (un client peut spammer)
-- `io` a `cors: { origin: '*' }` — ok en dev, risqué en prod
+### 6. Les events client et serveur sont dupliqués
 
-### 6. Fuites mémoire potentielles
+- Serveur : `server/socket/events.js` (CommonJS, `module.exports`)
+- Client : `src/client/core/events.js` (ESM, `export`)
 
-- `stunTimers` dans minesweeper utilise `setTimeout` avec des refs socket — si le serveur crash pendant un stun, le timer n'est pas nettoyé (mineur car PM2 restart, mais pas propre)
-- Les lobbies vides sont supprimées (`onEmptyLobby`) mais `pseudoProgress` dans minesweeper accumule indéfiniment les pseudos qui ont joué
-
-### 7. Pas de types
-
-Aucun JSDoc ni TypeScript. Avec la taille actuelle c'est gérable, mais ca va devenir un frein à mesure que le projet grandit — surtout les objets `state` et `player` qui ont des formes différentes par mode.
+Les mêmes strings sont écrites deux fois. Si quelqu'un change un event d'un côté sans l'autre, ça casse silencieusement. Solution : un seul fichier source (ESM) importé des deux côtés, ou généré au build.
 
 ---
 
 ## Ce que je ne toucherais PAS
 
-- Le generator — il marche, il est testé, il est isolé
-- Le système de persistence paint — propre et fonctionnel
-- `createSessionCore` — bon pattern, juste besoin de l'enrichir un peu
-- Le CSS — cohérent et bien structuré
+- `generator.js` — testé, isolé, marche
+- `createSessionCore` — bon pattern, JSDoc ajouté
+- Les sessions serveur (`minesweeperSession.js`, `paintSession.js`, `snakeSession.js`) — bien structurées
+- `server/socket/register*SocketHandlers.js` — propres et focalisés
+- Le CSS — cohérent
+- Le système de persistence paint — propre
+- Le build esbuild — simple et efficace
 
 ---
 
 ## Priorités d'action
 
-| Priorité | Action | Effort |
-|----------|--------|--------|
-| **1** | Ajouter esbuild + découper les clients en modules | Moyen |
-| **2** | Extraire les handlers Socket.IO de server.js vers chaque mode | Faible |
-| **3** | Unifier la convention de nommage des events | Faible |
-| **4** | Rate-limit mouvement + restreindre CORS | Faible |
-| **5** | Ajouter JSDoc sur les interfaces clés (state, player) | Faible |
+| Priorité | Action | Impact | Effort |
+|----------|--------|--------|--------|
+| **1** | Extraire les ~500 lignes dupliquées des clients dans des modules partagés (voir tableau ci-dessus) | Élimine la moitié du code de chaque mode | Moyen |
+| **2** | Créer un `createGameBootstrap()` qui encapsule le boilerplate commun (resize, game loop, join form, chat form, keydown/up, localStorage init) | Réduit chaque mode à sa logique spécifique | Moyen |
+| **3** | Déplacer `scheduleMinesNextRound` et `handleMinesPotentialGameOver` hors de server.js | server.js devient agnostique des modes | Faible |
+| **4** | Nettoyer les fichiers proxy racine et `base-client-common.js` | Moins de confusion | Faible |
+| **5** | Unifier events.js (un seul fichier source) | Élimine le risque de désync client/serveur | Faible |
 
-La priorité 1 est de loin la plus impactante. Tant que les clients sont des monolithes sans modules, chaque nouveau mode multiplie la dette.
+---
+
+## Résumé
+
+L'architecture serveur est propre et modulaire. Le gros du travail restant est côté client : les modules partagés existent mais ne couvrent que ~20% du code commun. Chaque nouveau mode copie encore ~500 lignes de boilerplate identique. Un `createGameBootstrap()` + quelques modules supplémentaires (player rendering, camera controls, drag/zoom, move queue) ramèneraient chaque mode à sa logique métier uniquement.

@@ -3,15 +3,14 @@ const http = require('http');
 const express = require('express');
 const { Server } = require('socket.io');
 
-const { createGameSession, STATS_DURATION_MS } = require('./gameSession');
-const { createPaintSession } = require('./paintSession');
-const { createSnakeSession } = require('./snakeSession');
+const { createGameSession, STATS_DURATION_MS } = require('./server/games/minesweeperSession');
+const { createPaintSession } = require('./server/games/paintSession');
+const { createSnakeSession } = require('./server/games/snakeSession');
 const {
-  MODE_EVENTS,
-  MINES_ACTION_EVENTS,
-  PAINT_ACTION_EVENTS,
-  SNAKE_ACTION_EVENTS,
-} = require('./server/socket/events');
+  MINES_EVENTS,
+  PAINT_EVENTS,
+  SNAKE_EVENTS,
+} = require('./shared/events');
 const { registerMinesSocketHandlers } = require('./server/socket/registerMinesSocketHandlers');
 const { registerPaintSocketHandlers } = require('./server/socket/registerPaintSocketHandlers');
 const { registerSnakeSocketHandlers } = require('./server/socket/registerSnakeSocketHandlers');
@@ -43,12 +42,10 @@ const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
     origin: (origin, callback) => {
-      // Browsers send null/undefined for same-origin or non-CORS websocket upgrades.
       if (!origin || ALLOWED_ORIGIN_SET.has(origin)) {
         callback(null, true);
         return;
       }
-
       callback(new Error(`Origin not allowed: ${origin}`));
     },
     credentials: true,
@@ -72,6 +69,8 @@ function normalizeLobbyId(value, fallbackLobbyId) {
   return lobbyId;
 }
 
+// --------------------------------------------------------- mode runtime
+
 const MODE_RUNTIME = {
   mines: {
     defaultLobbyId: 'global',
@@ -83,11 +82,20 @@ const MODE_RUNTIME = {
       return session;
     },
     onEmptyLobby: (lobby) => {
-      if (lobby && lobby.session && typeof lobby.session.setStatsTimeout === 'function') {
-        lobby.session.setStatsTimeout(null);
-      }
+      if (lobby?.session?.setStatsTimeout) lobby.session.setStatsTimeout(null);
     },
-    events: MODE_EVENTS.mines,
+    events: {
+      join: MINES_EVENTS.join,
+      joinError: MINES_EVENTS.joinError,
+      state: MINES_EVENTS.state,
+      playerJoined: MINES_EVENTS.playerJoined,
+      playerLeft: MINES_EVENTS.playerLeft,
+      move: MINES_EVENTS.move,
+      playerMoved: MINES_EVENTS.playerMoved,
+      chatTyping: MINES_EVENTS.chatTyping,
+      chatSend: MINES_EVENTS.chatSend,
+      chatMessage: MINES_EVENTS.chatMessage,
+    },
   },
   paint: {
     defaultLobbyId: 'paint-global',
@@ -95,11 +103,20 @@ const MODE_RUNTIME = {
     hasPositionMove: true,
     createSession: (lobbyId) => createPaintSession({ persistKey: lobbyId }),
     onEmptyLobby: (lobby) => {
-      if (lobby && lobby.session && typeof lobby.session.dispose === 'function') {
-        lobby.session.dispose();
-      }
+      if (lobby?.session?.dispose) lobby.session.dispose();
     },
-    events: MODE_EVENTS.paint,
+    events: {
+      join: PAINT_EVENTS.join,
+      joinError: PAINT_EVENTS.joinError,
+      state: PAINT_EVENTS.state,
+      playerJoined: PAINT_EVENTS.playerJoined,
+      playerLeft: PAINT_EVENTS.playerLeft,
+      move: PAINT_EVENTS.move,
+      playerMoved: PAINT_EVENTS.playerMoved,
+      chatTyping: PAINT_EVENTS.chatTyping,
+      chatSend: PAINT_EVENTS.chatSend,
+      chatMessage: PAINT_EVENTS.chatMessage,
+    },
   },
   snake: {
     defaultLobbyId: 'snake-global',
@@ -107,7 +124,7 @@ const MODE_RUNTIME = {
     hasPositionMove: false,
     createSession: (lobbyId) => createSnakeSession({
       onPlayerDied: (socketId, payload) => {
-        io.to(socketId).emit(SNAKE_ACTION_EVENTS.deathOut, payload || {});
+        io.to(socketId).emit(SNAKE_EVENTS.playerDied, payload || {});
       },
       onPlayerRemoved: (socketId) => {
         const deadSocket = io.sockets.sockets.get(socketId);
@@ -116,19 +133,27 @@ const MODE_RUNTIME = {
           deadSocket.data.mode = null;
           deadSocket.data.lobbyId = null;
         }
-
-        io.to(lobbyId).emit(MODE_EVENTS.snake.playerLeft, { id: socketId });
+        io.to(lobbyId).emit(SNAKE_EVENTS.playerLeft, { id: socketId });
         tryRemoveLobby('snake', lobbyId);
       },
     }),
     onEmptyLobby: (lobby) => {
-      if (lobby && lobby.session && typeof lobby.session.dispose === 'function') {
-        lobby.session.dispose();
-      }
+      if (lobby?.session?.dispose) lobby.session.dispose();
     },
-    events: MODE_EVENTS.snake,
+    events: {
+      join: SNAKE_EVENTS.join,
+      joinError: SNAKE_EVENTS.joinError,
+      state: SNAKE_EVENTS.state,
+      playerJoined: SNAKE_EVENTS.playerJoined,
+      playerLeft: SNAKE_EVENTS.playerLeft,
+      chatTyping: SNAKE_EVENTS.chatTyping,
+      chatSend: SNAKE_EVENTS.chatSend,
+      chatMessage: SNAKE_EVENTS.chatMessage,
+    },
   },
 };
+
+// --------------------------------------------------------- lobby management
 
 function getOrCreateLobby(mode, lobbyId) {
   const runtime = MODE_RUNTIME[mode];
@@ -139,11 +164,7 @@ function getOrCreateLobby(mode, lobbyId) {
         io.to(lobbyId).emit(event, payload);
       });
     }
-
-    runtime.lobbies.set(lobbyId, {
-      id: lobbyId,
-      session,
-    });
+    runtime.lobbies.set(lobbyId, { id: lobbyId, session });
   }
   return runtime.lobbies.get(lobbyId);
 }
@@ -151,15 +172,8 @@ function getOrCreateLobby(mode, lobbyId) {
 function disposeAllSessions() {
   for (const runtime of Object.values(MODE_RUNTIME)) {
     for (const lobby of runtime.lobbies.values()) {
-      if (!lobby || !lobby.session || typeof lobby.session.dispose !== 'function') {
-        continue;
-      }
-
-      try {
-        lobby.session.dispose();
-      } catch (error) {
-        console.error('Session dispose failed:', error);
-      }
+      if (!lobby?.session?.dispose) continue;
+      try { lobby.session.dispose(); } catch (e) { console.error('Session dispose failed:', e); }
     }
   }
 }
@@ -168,15 +182,9 @@ function tryRemoveLobby(mode, lobbyId) {
   const runtime = MODE_RUNTIME[mode];
   if (!runtime) return;
   if (lobbyId === runtime.defaultLobbyId) return;
-
   const lobby = runtime.lobbies.get(lobbyId);
-  if (!lobby) return;
-  if (lobby.session.getPlayerCount() > 0) return;
-
-  if (typeof runtime.onEmptyLobby === 'function') {
-    runtime.onEmptyLobby(lobby);
-  }
-
+  if (!lobby || lobby.session.getPlayerCount() > 0) return;
+  if (typeof runtime.onEmptyLobby === 'function') runtime.onEmptyLobby(lobby);
   runtime.lobbies.delete(lobbyId);
 }
 
@@ -185,28 +193,20 @@ function getContextForSocket(socket, expectedMode = null) {
   const lobbyId = socket.data?.lobbyId;
   if (!mode || !lobbyId) return null;
   if (expectedMode && mode !== expectedMode) return null;
-
   const runtime = MODE_RUNTIME[mode];
   if (!runtime) return null;
-
   const lobby = runtime.lobbies.get(lobbyId);
   if (!lobby) return null;
-
   return { mode, lobbyId, lobby, runtime };
 }
 
 function removeSocketFromLobby(socket, mode, lobbyId) {
   const runtime = MODE_RUNTIME[mode];
   if (!runtime) return;
-
   const lobby = runtime.lobbies.get(lobbyId);
   if (!lobby) return;
-
   const removed = lobby.session.removePlayer(socket.id);
-  if (removed) {
-    io.to(lobbyId).emit(runtime.events.playerLeft, { id: socket.id });
-  }
-
+  if (removed) io.to(lobbyId).emit(runtime.events.playerLeft, { id: socket.id });
   socket.leave(lobbyId);
   tryRemoveLobby(mode, lobbyId);
 }
@@ -215,49 +215,15 @@ function removeSocketFromCurrentSession(socket) {
   const mode = socket.data?.mode;
   const lobbyId = socket.data?.lobbyId;
   if (!mode || !lobbyId) return;
-
   removeSocketFromLobby(socket, mode, lobbyId);
   socket.data.mode = null;
   socket.data.lobbyId = null;
 }
 
-function scheduleMinesNextRound(lobbyId) {
-  const runtime = MODE_RUNTIME.mines;
-  const lobby = runtime.lobbies.get(lobbyId);
-  if (!lobby) return;
-
-  const timeout = setTimeout(() => {
-    const activeLobby = runtime.lobbies.get(lobbyId);
-    if (!activeLobby) return;
-    io.to(lobbyId).emit(MINES_ACTION_EVENTS.gameNewOut, activeLobby.session.initNewGame());
-  }, STATS_DURATION_MS);
-
-  lobby.session.setStatsTimeout(timeout);
-}
-
-function handleMinesPotentialGameOver(lobbyId, result) {
-  if (!result) return;
-
-  const runtime = MODE_RUNTIME.mines;
-  const lobby = runtime.lobbies.get(lobbyId);
-  if (!lobby) return;
-
-  const stats = lobby.session.endGame(result);
-  if (!stats) return;
-
-  io.to(lobbyId).emit(MINES_ACTION_EVENTS.gameOverOut, {
-    result,
-    stats,
-  });
-
-  scheduleMinesNextRound(lobbyId);
-}
+// --------------------------------------------------------- common handlers
 
 function sanitizeCoords(payload) {
-  return {
-    x: Number(payload?.x),
-    y: Number(payload?.y),
-  };
+  return { x: Number(payload?.x), y: Number(payload?.y) };
 }
 
 function sanitizeChatText(payload) {
@@ -267,9 +233,7 @@ function sanitizeChatText(payload) {
 function handleJoin(socket, mode, payload = {}) {
   const runtime = MODE_RUNTIME[mode];
   if (!runtime) return;
-
-  const requestedLobbyId = payload.lobbyId || runtime.defaultLobbyId;
-  const nextLobbyId = normalizeLobbyId(requestedLobbyId, runtime.defaultLobbyId);
+  const nextLobbyId = normalizeLobbyId(payload.lobbyId || runtime.defaultLobbyId, runtime.defaultLobbyId);
   const currentMode = socket.data?.mode || null;
   const currentLobbyId = socket.data?.lobbyId || null;
 
@@ -289,7 +253,6 @@ function handleJoin(socket, mode, payload = {}) {
   socket.data.mode = mode;
   socket.data.lobbyId = nextLobbyId;
   socket.join(nextLobbyId);
-
   socket.emit(runtime.events.state, lobby.session.getPublicState(socket.id));
   io.to(nextLobbyId).emit(runtime.events.playerJoined, added.player);
 }
@@ -298,52 +261,41 @@ function registerCommonModeHandlers(socket, mode) {
   const runtime = MODE_RUNTIME[mode];
   if (!runtime) return;
 
-  socket.on(runtime.events.join, (payload = {}) => {
-    handleJoin(socket, mode, payload);
-  });
+  socket.on(runtime.events.join, (payload = {}) => handleJoin(socket, mode, payload));
 
-  if (runtime.hasPositionMove && runtime.events.move && runtime.events.moved) {
+  if (runtime.hasPositionMove && runtime.events.move && runtime.events.playerMoved) {
     socket.on(runtime.events.move, (payload = {}) => {
       const ctx = getContextForSocket(socket, mode);
-      if (!ctx) return;
-      if (!ctx.lobby.session || typeof ctx.lobby.session.movePlayer !== 'function') return;
-
+      if (!ctx?.lobby.session?.movePlayer) return;
       const { x, y } = sanitizeCoords(payload);
       const moved = ctx.lobby.session.movePlayer(socket.id, x, y);
-
       if (!moved.ok) return;
-
-      io.to(ctx.lobbyId).emit(runtime.events.moved, {
-        id: moved.player.id,
-        x: moved.player.x,
-        y: moved.player.y,
+      io.to(ctx.lobbyId).emit(runtime.events.playerMoved, {
+        id: moved.player.id, x: moved.player.x, y: moved.player.y,
       });
     });
   }
 
-  socket.on(runtime.events.typingIn, (payload = {}) => {
+  socket.on(runtime.events.chatTyping, (payload = {}) => {
     const ctx = getContextForSocket(socket, mode);
     if (!ctx) return;
-
     const typing = ctx.lobby.session.setPlayerTyping(socket.id, Boolean(payload.active));
     if (!typing.ok) return;
-
-    io.to(ctx.lobbyId).emit(runtime.events.typingOut, {
-      id: typing.player.id,
-      active: Boolean(typing.player.isTyping),
+    io.to(ctx.lobbyId).emit(runtime.events.chatTyping, {
+      id: typing.player.id, active: Boolean(typing.player.isTyping),
     });
   });
 
-  socket.on(runtime.events.chatIn, (payload = {}) => {
+  socket.on(runtime.events.chatSend, (payload = {}) => {
     const ctx = getContextForSocket(socket, mode);
     if (!ctx) return;
-
     const sent = ctx.lobby.session.addChatMessage(socket.id, sanitizeChatText(payload));
     if (!sent.ok) return;
-
-    io.to(ctx.lobbyId).emit(runtime.events.chatOut, sent.message);
+    io.to(ctx.lobbyId).emit(runtime.events.chatMessage, sent.message);
   });
 }
+
+// --------------------------------------------------------- connection
 
 io.on('connection', (socket) => {
   registerCommonModeHandlers(socket, 'mines');
@@ -351,31 +303,32 @@ io.on('connection', (socket) => {
   registerCommonModeHandlers(socket, 'snake');
 
   registerMinesSocketHandlers({
-    socket,
-    io,
-    getContextForSocket,
-    sanitizeCoords,
-    handleMinesPotentialGameOver,
-    minesActionEvents: MINES_ACTION_EVENTS,
+    socket, io, getContextForSocket, sanitizeCoords,
+    minesEvents: MINES_EVENTS,
+    getMinesLobby: (lobbyId) => MODE_RUNTIME.mines.lobbies.get(lobbyId),
+    scheduleMinesNextRound: (lobbyId) => {
+      const lobby = MODE_RUNTIME.mines.lobbies.get(lobbyId);
+      if (!lobby) return;
+      const timeout = setTimeout(() => {
+        const activeLobby = MODE_RUNTIME.mines.lobbies.get(lobbyId);
+        if (!activeLobby) return;
+        io.to(lobbyId).emit(MINES_EVENTS.gameNew, activeLobby.session.initNewGame());
+      }, STATS_DURATION_MS);
+      lobby.session.setStatsTimeout(timeout);
+    },
   });
 
   registerPaintSocketHandlers({
-    socket,
-    io,
-    getContextForSocket,
-    sanitizeCoords,
-    paintActionEvents: PAINT_ACTION_EVENTS,
+    socket, io, getContextForSocket, sanitizeCoords,
+    paintEvents: PAINT_EVENTS,
   });
 
   registerSnakeSocketHandlers({
-    socket,
-    getContextForSocket,
-    snakeActionEvents: SNAKE_ACTION_EVENTS,
+    socket, getContextForSocket,
+    snakeEvents: SNAKE_EVENTS,
   });
 
-  socket.on('disconnect', () => {
-    removeSocketFromCurrentSession(socket);
-  });
+  socket.on('disconnect', () => removeSocketFromCurrentSession(socket));
 });
 
 for (const [mode, runtime] of Object.entries(MODE_RUNTIME)) {
@@ -390,17 +343,10 @@ let shuttingDown = false;
 function handleShutdown(signal) {
   if (shuttingDown) return;
   shuttingDown = true;
-
   console.log(`Received ${signal}. Saving sessions and shutting down...`);
   disposeAllSessions();
-
-  server.close(() => {
-    process.exit(0);
-  });
-
-  setTimeout(() => {
-    process.exit(0);
-  }, 3000).unref();
+  server.close(() => process.exit(0));
+  setTimeout(() => process.exit(0), 3000).unref();
 }
 
 process.on('SIGINT', () => handleShutdown('SIGINT'));

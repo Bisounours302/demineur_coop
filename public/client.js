@@ -1,4 +1,102 @@
 (() => {
+  var __create = Object.create;
+  var __defProp = Object.defineProperty;
+  var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+  var __getOwnPropNames = Object.getOwnPropertyNames;
+  var __getProtoOf = Object.getPrototypeOf;
+  var __hasOwnProp = Object.prototype.hasOwnProperty;
+  var __commonJS = (cb, mod) => function __require() {
+    return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
+  };
+  var __copyProps = (to, from, except, desc) => {
+    if (from && typeof from === "object" || typeof from === "function") {
+      for (let key of __getOwnPropNames(from))
+        if (!__hasOwnProp.call(to, key) && key !== except)
+          __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+    }
+    return to;
+  };
+  var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(
+    // If the importer is in node compatibility mode or this is not an ESM
+    // file that has been converted to a CommonJS file using a Babel-
+    // compatible transform (i.e. "__esModule" has not been set), then set
+    // "default" to the CommonJS "module.exports" for node compatibility.
+    isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target,
+    mod
+  ));
+
+  // shared/events.js
+  var require_events = __commonJS({
+    "shared/events.js"(exports, module) {
+      var MINES_EVENTS2 = {
+        join: "mines:join",
+        joinError: "mines:error:join",
+        state: "mines:state",
+        playerJoined: "mines:player:joined",
+        playerLeft: "mines:player:left",
+        move: "mines:move",
+        playerMoved: "mines:player:moved",
+        chatTyping: "mines:chat:typing",
+        chatSend: "mines:chat:send",
+        chatMessage: "mines:chat:message",
+        reveal: "mines:cell:reveal",
+        cellsRevealed: "mines:cells:revealed",
+        flag: "mines:cell:flag",
+        cellFlagged: "mines:cell:flagged",
+        bombExploded: "mines:bomb:exploded",
+        gameOver: "mines:game:over",
+        gameNew: "mines:game:new"
+      };
+      var PAINT_EVENTS = {
+        join: "paint:join",
+        joinError: "paint:error:join",
+        state: "paint:state",
+        playerJoined: "paint:player:joined",
+        playerLeft: "paint:player:left",
+        move: "paint:move",
+        playerMoved: "paint:player:moved",
+        chatTyping: "paint:chat:typing",
+        chatSend: "paint:chat:send",
+        chatMessage: "paint:chat:message",
+        place: "paint:pixel:place",
+        pixel: "paint:pixel"
+      };
+      var SNAKE_EVENTS = {
+        join: "snake:join",
+        joinError: "snake:error:join",
+        state: "snake:state",
+        playerJoined: "snake:player:joined",
+        playerLeft: "snake:player:left",
+        chatTyping: "snake:chat:typing",
+        chatSend: "snake:chat:send",
+        chatMessage: "snake:chat:message",
+        turn: "snake:turn",
+        tick: "snake:tick",
+        playerDied: "snake:player:died"
+      };
+      var SKELETON_EVENTS = {
+        join: "skeleton:join",
+        joinError: "skeleton:error:join",
+        state: "skeleton:state",
+        playerJoined: "skeleton:player:joined",
+        playerLeft: "skeleton:player:left",
+        move: "skeleton:move",
+        playerMoved: "skeleton:player:moved",
+        chatTyping: "skeleton:chat:typing",
+        chatSend: "skeleton:chat:send",
+        chatMessage: "skeleton:chat:message",
+        action: "skeleton:action",
+        actionApplied: "skeleton:action:applied"
+      };
+      module.exports = {
+        MINES_EVENTS: MINES_EVENTS2,
+        PAINT_EVENTS,
+        SNAKE_EVENTS,
+        SKELETON_EVENTS
+      };
+    }
+  });
+
   // src/client/core/shared.js
   var PLAYER_COLORS = [
     "#FF6B6B",
@@ -87,35 +185,17 @@
     return new TypedArray(buffer);
   }
 
-  // src/client/core/events.js
-  var MINES_EVENTS = {
-    join: "mines:join",
-    joinError: "mines:error:join",
-    state: "mines:state",
-    gameNew: "mines:game:new",
-    playerJoined: "mines:player:joined",
-    playerLeft: "mines:player:left",
-    chatMessage: "mines:chat:message",
-    chatTyping: "mines:chat:typing",
-    move: "mines:move",
-    playerMoved: "mines:player:moved",
-    reveal: "mines:cell:reveal",
-    cellsRevealed: "mines:cells:revealed",
-    flag: "mines:cell:flag",
-    cellFlagged: "mines:cell:flagged",
-    bombExploded: "mines:bomb:exploded",
-    gameOver: "mines:game:over",
-    chatSend: "mines:chat:send"
-  };
+  // src/client/modes/mines/index.js
+  var import_events = __toESM(require_events());
 
   // src/client/modules/chat/createChatModule.js
   function createChatModule(options) {
     const {
       state: state2,
-      chatDockEl: chatDockEl2,
-      chatFormEl: chatFormEl2,
-      chatMessagesEl: chatMessagesEl2,
-      chatInputEl: chatInputEl2,
+      chatDockEl,
+      chatFormEl,
+      chatMessagesEl,
+      chatInputEl,
       resolveColorForPseudo,
       emitTyping,
       maxMessages = 100,
@@ -137,17 +217,17 @@
       };
     }
     function renderMessages() {
-      if (!chatMessagesEl2) return;
+      if (!chatMessagesEl) return;
       const messagesToRender = state2.chat.open ? state2.chat.messages : state2.chat.messages.slice(-closedVisibleMessages);
-      chatMessagesEl2.innerHTML = "";
+      chatMessagesEl.innerHTML = "";
       for (const entry of messagesToRender) {
         const li = document.createElement("li");
         li.className = "chat-item";
         li.innerHTML = `<strong style="color:${entry.color};">${entry.pseudo}</strong>: ${entry.text}`;
-        chatMessagesEl2.appendChild(li);
+        chatMessagesEl.appendChild(li);
       }
       if (state2.chat.open) {
-        chatMessagesEl2.scrollTop = chatMessagesEl2.scrollHeight;
+        chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
       }
     }
     function setMessages(messages) {
@@ -163,7 +243,7 @@
       }
       renderMessages();
     }
-    function setTypingStatus2(active) {
+    function setTypingStatus(active) {
       const myId = typeof getMyId === "function" ? getMyId() : state2.myId;
       if (!myId || state2.chat.typingSent === active) return;
       if (typeof onLocalTypingChanged === "function") {
@@ -178,29 +258,29 @@
       const next = Boolean(open);
       if (state2.chat.open === next) return;
       state2.chat.open = next;
-      if (chatDockEl2) {
-        chatDockEl2.classList.toggle("open", next);
+      if (chatDockEl) {
+        chatDockEl.classList.toggle("open", next);
       }
-      if (chatFormEl2) {
-        chatFormEl2.classList.toggle("hidden", !next);
+      if (chatFormEl) {
+        chatFormEl.classList.toggle("hidden", !next);
       }
       renderMessages();
       if (next) {
         if (typeof onOpen === "function") {
           onOpen();
         }
-        setTypingStatus2(true);
-        if (focusInput && chatInputEl2) {
-          chatInputEl2.focus();
+        setTypingStatus(true);
+        if (focusInput && chatInputEl) {
+          chatInputEl.focus();
         }
         return;
       }
       if (typeof onClose === "function") {
         onClose();
       }
-      setTypingStatus2(false);
-      if (chatInputEl2) {
-        chatInputEl2.blur();
+      setTypingStatus(false);
+      if (chatInputEl) {
+        chatInputEl.blur();
       }
     }
     function toggleOpen() {
@@ -210,7 +290,7 @@
       setMessages,
       appendMessage,
       renderMessages,
-      setTypingStatus: setTypingStatus2,
+      setTypingStatus,
       setOpen,
       toggleOpen
     };
@@ -242,32 +322,32 @@
   function createIdentityModule(options) {
     const {
       state: state2,
-      avatarOptionEls: avatarOptionEls2,
-      colorPickerEl: colorPickerEl2,
+      avatarOptionEls,
+      colorPickerEl,
       normalizeAvatarIndex: normalizeAvatarIndex2,
       normalizeColorIndex: normalizeColorIndex2,
       playerColors,
       avatarStorageKey = "avatar",
       colorStorageKey = "colorIndex"
     } = options;
-    function updateAvatarSelectionUI2() {
-      for (const option of avatarOptionEls2 || []) {
+    function updateAvatarSelectionUI() {
+      for (const option of avatarOptionEls || []) {
         const avatar = normalizeAvatarIndex2(option.dataset.avatar);
         const selected = avatar === state2.myAvatar;
         option.classList.toggle("selected", selected);
         option.setAttribute("aria-checked", selected ? "true" : "false");
       }
     }
-    function setMyAvatar2(value, persist = true) {
+    function setMyAvatar(value, persist = true) {
       state2.myAvatar = normalizeAvatarIndex2(value);
-      updateAvatarSelectionUI2();
+      updateAvatarSelectionUI();
       if (persist) {
         localStorage.setItem(avatarStorageKey, String(state2.myAvatar));
       }
     }
-    function updateColorSelectionUI2() {
-      if (!colorPickerEl2) return;
-      const options2 = Array.from(colorPickerEl2.querySelectorAll(".color-option"));
+    function updateColorSelectionUI() {
+      if (!colorPickerEl) return;
+      const options2 = Array.from(colorPickerEl.querySelectorAll(".color-option"));
       for (const option of options2) {
         const idxValue = normalizeColorIndex2(option.dataset.colorIndex);
         const selected = idxValue === state2.myColorIndex;
@@ -275,16 +355,16 @@
         option.setAttribute("aria-checked", selected ? "true" : "false");
       }
     }
-    function setMyColorIndex2(value, persist = true) {
+    function setMyColorIndex(value, persist = true) {
       state2.myColorIndex = normalizeColorIndex2(value);
-      updateColorSelectionUI2();
+      updateColorSelectionUI();
       if (persist) {
         localStorage.setItem(colorStorageKey, String(state2.myColorIndex));
       }
     }
-    function setupColorPicker2() {
-      if (!colorPickerEl2) return;
-      colorPickerEl2.innerHTML = "";
+    function setupColorPicker() {
+      if (!colorPickerEl) return;
+      colorPickerEl.innerHTML = "";
       for (let i = 0; i < playerColors.length; i++) {
         const btn = document.createElement("button");
         btn.type = "button";
@@ -294,33 +374,33 @@
         btn.setAttribute("aria-checked", "false");
         btn.title = `Couleur ${i + 1}`;
         btn.style.setProperty("--swatch-color", playerColors[i]);
-        btn.addEventListener("click", () => setMyColorIndex2(i));
-        colorPickerEl2.appendChild(btn);
+        btn.addEventListener("click", () => setMyColorIndex(i));
+        colorPickerEl.appendChild(btn);
       }
-      updateColorSelectionUI2();
+      updateColorSelectionUI();
     }
-    function setupAvatarPicker2() {
-      for (const option of avatarOptionEls2 || []) {
+    function setupAvatarPicker() {
+      for (const option of avatarOptionEls || []) {
         option.addEventListener("click", () => {
-          setMyAvatar2(option.dataset.avatar);
+          setMyAvatar(option.dataset.avatar);
         });
       }
-      updateAvatarSelectionUI2();
+      updateAvatarSelectionUI();
     }
-    function drawAvatarPickerPreview2({
+    function drawAvatarPickerPreview({
       now,
-      sprites,
+      sprites: sprites2,
       animIdleMs,
       frameSize,
       frameCols,
       fallbackColor = null
     }) {
       const idleCol = Math.floor(now / animIdleMs) % frameCols;
-      for (const option of avatarOptionEls2 || []) {
+      for (const option of avatarOptionEls || []) {
         const canvasEl = option.querySelector(".avatar-preview");
         if (!canvasEl) continue;
         const avatar = normalizeAvatarIndex2(option.dataset.avatar);
-        const image = sprites[avatar];
+        const image = sprites2[avatar];
         const pctx = canvasEl.getContext("2d");
         pctx.clearRect(0, 0, canvasEl.width, canvasEl.height);
         pctx.imageSmoothingEnabled = false;
@@ -345,20 +425,20 @@
       }
     }
     return {
-      updateAvatarSelectionUI: updateAvatarSelectionUI2,
-      setMyAvatar: setMyAvatar2,
-      updateColorSelectionUI: updateColorSelectionUI2,
-      setMyColorIndex: setMyColorIndex2,
-      setupColorPicker: setupColorPicker2,
-      setupAvatarPicker: setupAvatarPicker2,
-      drawAvatarPickerPreview: drawAvatarPickerPreview2
+      updateAvatarSelectionUI,
+      setMyAvatar,
+      updateColorSelectionUI,
+      setMyColorIndex,
+      setupColorPicker,
+      setupAvatarPicker,
+      drawAvatarPickerPreview
     };
   }
 
   // src/client/modules/network/registerCommonSocketLifecycle.js
   function registerCommonSocketLifecycle(options) {
     const {
-      socket: socket2,
+      socket,
       events,
       state: state2,
       onConnect,
@@ -371,7 +451,7 @@
       onChatTyping,
       stateEvents = []
     } = options;
-    socket2.on("connect", () => {
+    socket.on("connect", () => {
       if (state2?.chat) {
         state2.chat.typingSent = false;
       }
@@ -379,7 +459,7 @@
         onConnect();
       }
     });
-    socket2.on("disconnect", () => {
+    socket.on("disconnect", () => {
       if (state2?.chat) {
         state2.chat.typingSent = false;
       }
@@ -388,33 +468,33 @@
       }
     });
     if (events?.joinError && typeof onJoinError === "function") {
-      socket2.on(events.joinError, (payload = {}) => onJoinError(payload));
+      socket.on(events.joinError, (payload = {}) => onJoinError(payload));
     }
     const uniqueStateEvents = Array.from(new Set([events?.state, ...stateEvents || []].filter(Boolean)));
     if (typeof onState === "function") {
       for (const eventName of uniqueStateEvents) {
-        socket2.on(eventName, (payload = {}) => onState(payload));
+        socket.on(eventName, (payload = {}) => onState(payload));
       }
     }
     if (events?.playerJoined && typeof onPlayerJoined === "function") {
-      socket2.on(events.playerJoined, (payload = {}) => onPlayerJoined(payload));
+      socket.on(events.playerJoined, (payload = {}) => onPlayerJoined(payload));
     }
     if (events?.playerLeft && typeof onPlayerLeft === "function") {
-      socket2.on(events.playerLeft, (payload = {}) => onPlayerLeft(payload));
+      socket.on(events.playerLeft, (payload = {}) => onPlayerLeft(payload));
     }
     if (events?.chatMessage && typeof onChatMessage === "function") {
-      socket2.on(events.chatMessage, (payload = {}) => onChatMessage(payload));
+      socket.on(events.chatMessage, (payload = {}) => onChatMessage(payload));
     }
     if (events?.chatTyping && typeof onChatTyping === "function") {
-      socket2.on(events.chatTyping, (payload = {}) => onChatTyping(payload));
+      socket.on(events.chatTyping, (payload = {}) => onChatTyping(payload));
     }
   }
 
   // src/client/modules/camera/followCamera.js
-  function getCameraViewport(camera, canvas2) {
+  function getCameraViewport(camera, canvas) {
     return {
-      viewW: canvas2.width / camera.scale,
-      viewH: canvas2.height / camera.scale
+      viewW: canvas.width / camera.scale,
+      viewH: canvas.height / camera.scale
     };
   }
   function getCameraTarget({ focusX, focusY, tileSize, viewW, viewH }) {
@@ -423,21 +503,21 @@
       targetY: focusY * tileSize + tileSize * 0.5 - viewH * 0.5
     };
   }
-  function clampCameraToWorld({ camera, canvas: canvas2, worldW, worldH }) {
-    const { viewW, viewH } = getCameraViewport(camera, canvas2);
+  function clampCameraToWorld({ camera, canvas, worldW, worldH }) {
+    const { viewW, viewH } = getCameraViewport(camera, canvas);
     camera.x = Math.max(0, Math.min(camera.x, Math.max(0, worldW - viewW)));
     camera.y = Math.max(0, Math.min(camera.y, Math.max(0, worldH - viewH)));
   }
   function centerCameraOnFocus({
     camera,
-    canvas: canvas2,
+    canvas,
     tileSize,
     focusX,
     focusY,
     immediate = false,
     smoothing = 0.05
   }) {
-    const { viewW, viewH } = getCameraViewport(camera, canvas2);
+    const { viewW, viewH } = getCameraViewport(camera, canvas);
     const { targetX, targetY } = getCameraTarget({ focusX, focusY, tileSize, viewW, viewH });
     if (immediate) {
       camera.x = targetX;
@@ -454,16 +534,16 @@
     code,
     dx,
     dy,
-    enqueueMove: enqueueMove2,
+    enqueueMove,
     holdDelayMs,
     moveCooldownMs
   }) {
     if (holdControls.has(code)) return;
-    enqueueMove2(dx, dy);
+    enqueueMove(dx, dy);
     const hold = {
       interval: null,
       timeout: setTimeout(() => {
-        hold.interval = setInterval(() => enqueueMove2(dx, dy), moveCooldownMs);
+        hold.interval = setInterval(() => enqueueMove(dx, dy), moveCooldownMs);
       }, holdDelayMs)
     };
     holdControls.set(code, hold);
@@ -483,20 +563,521 @@
     }
   }
 
+  // src/client/modules/player/spriteUtils.js
+  var IDLE_ROWS = { down: 0, right: 1, left: 2, up: 3 };
+  var RUN_ROWS = {
+    down: [5, 6],
+    left: [7, 8],
+    right: [9, 10],
+    up: [11, 12]
+  };
+  function spriteDirection(dx, dy, previous = "down") {
+    if (Math.abs(dx) > Math.abs(dy)) {
+      return dx < 0 ? "left" : "right";
+    }
+    if (dy < 0) return "up";
+    if (dy > 0) return "down";
+    return previous;
+  }
+  function getSpriteFrame(player, now, opts = {}) {
+    const {
+      animIdleMs = 220,
+      animRunMs = 85,
+      cols = 4,
+      walkWindowMs = 240
+    } = opts;
+    const moving = now - player.lastMoveAt <= walkWindowMs;
+    if (!moving) {
+      return {
+        row: IDLE_ROWS[player.dir] ?? 0,
+        col: Math.floor(now / animIdleMs) % cols
+      };
+    }
+    const rows = RUN_ROWS[player.dir] || RUN_ROWS.down;
+    const frame = Math.floor(now / animRunMs) % 8;
+    return {
+      row: rows[Math.floor(frame / 4)],
+      col: frame % 4
+    };
+  }
+
+  // src/client/modules/bootstrap/createModeBootstrap.js
+  function createModeBootstrap(config) {
+    const {
+      state: state2,
+      events,
+      sprites: sprites2,
+      tileSize,
+      minScale = 0.3,
+      maxScale = 2,
+      animIdleMs = 220,
+      animalFrame = 32,
+      animalCols = 4,
+      hasPositionMove = true,
+      moveCooldownMs = 120,
+      holdDelayMs = 300,
+      cameraSmoothing = 0.05,
+      cameraSnapThreshold = null,
+      stateEvents = [],
+      getWorldSize,
+      getFocusPosition,
+      onApplyState,
+      onPlayerJoined,
+      onPlayerLeft,
+      onRender,
+      onUpdateHud,
+      onKeydown,
+      onMousedown,
+      onWindowBlur,
+      onJoinPayload,
+      onInit,
+      extraSocketSetup
+    } = config;
+    if (!state2.camera) {
+      state2.camera = { x: 0, y: 0, scale: 1, isManual: false, dragging: false, dragLastX: 0, dragLastY: 0 };
+    }
+    if (!state2.chat) {
+      state2.chat = { open: false, typingSent: false, messages: [] };
+    }
+    if (!state2.players) {
+      state2.players = /* @__PURE__ */ new Map();
+    }
+    if (state2.phase === void 0) state2.phase = "lobby";
+    if (state2.myId === void 0) state2.myId = null;
+    if (state2.myPseudo === void 0) state2.myPseudo = null;
+    if (state2.myAvatar === void 0) state2.myAvatar = 0;
+    if (state2.myColorIndex === void 0) state2.myColorIndex = 0;
+    if (state2.hasJoinedOnce === void 0) state2.hasJoinedOnce = false;
+    if (state2.loopStarted === void 0) state2.loopStarted = false;
+    if (state2.startTime === void 0) state2.startTime = null;
+    if (hasPositionMove) {
+      if (!state2.me) state2.me = { x: 0, y: 0 };
+      if (!state2.moveQueue) state2.moveQueue = [];
+      if (state2.lastMoveAt === void 0) state2.lastMoveAt = 0;
+      if (!state2.holdControls) state2.holdControls = /* @__PURE__ */ new Map();
+    }
+    const lobbyIdFromQuery = (() => {
+      const raw = new URLSearchParams(window.location.search).get("lobby");
+      const v = String(raw || "").trim().toLowerCase();
+      return v || null;
+    })();
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+    const els = {
+      lobby: document.getElementById("lobby"),
+      joinForm: document.getElementById("joinForm"),
+      pseudoInput: document.getElementById("pseudoInput"),
+      joinError: document.getElementById("joinError"),
+      reconnect: document.getElementById("reconnect"),
+      hud: document.getElementById("hud"),
+      avatarOptions: Array.from(document.querySelectorAll(".avatar-option")),
+      colorPicker: document.getElementById("colorPicker"),
+      chatDock: document.getElementById("chatDock"),
+      chatToggleBtn: document.getElementById("chatToggleBtn"),
+      chatMessages: document.getElementById("chatMessages"),
+      chatForm: document.getElementById("chatForm"),
+      chatInput: document.getElementById("chatInput")
+    };
+    const socket = io();
+    const identityModule = createIdentityModule({
+      state: state2,
+      avatarOptionEls: els.avatarOptions,
+      colorPickerEl: els.colorPicker,
+      normalizeAvatarIndex,
+      normalizeColorIndex,
+      playerColors: PLAYER_COLORS
+    });
+    function clearAllHoldMoves() {
+      if (hasPositionMove) clearAllHoldMoveKeys(state2.holdControls);
+    }
+    const chatModule = createChatModule({
+      state: state2,
+      chatDockEl: els.chatDock,
+      chatFormEl: els.chatForm,
+      chatMessagesEl: els.chatMessages,
+      chatInputEl: els.chatInput,
+      resolveColorForPseudo: colorForPseudo,
+      emitTyping: (active) => socket.emit(events.chatTyping, { active }),
+      maxMessages: CHAT_MAX_MESSAGES,
+      closedVisibleMessages: CHAT_CLOSED_VISIBLE_MESSAGES,
+      getMyId: () => state2.myId,
+      onOpen: () => {
+        clearAllHoldMoves();
+        if (hasPositionMove) state2.moveQueue = [];
+        state2.camera.dragging = false;
+      },
+      onLocalTypingChanged: (active) => {
+        const me = state2.players.get(state2.myId);
+        if (me) me.isTyping = active;
+      }
+    });
+    const hudModule = createHudModule({ rootEl: els.hud });
+    function clampCamera() {
+      const world = getWorldSize();
+      clampCameraToWorld({ camera: state2.camera, canvas, worldW: world.w, worldH: world.h });
+    }
+    function centerCameraOnMe(immediate = false) {
+      const focus = getFocusPosition();
+      centerCameraOnFocus({
+        camera: state2.camera,
+        canvas,
+        tileSize,
+        focusX: focus.x,
+        focusY: focus.y,
+        immediate,
+        smoothing: cameraSmoothing
+      });
+      clampCamera();
+    }
+    function updateCamera() {
+      if (state2.phase === "lobby") return;
+      if (state2.camera.dragging) {
+        clampCamera();
+        return;
+      }
+      if (cameraSnapThreshold !== null && hasPositionMove) {
+        const focus = getFocusPosition();
+        const { viewW, viewH } = getCameraViewport(state2.camera, canvas);
+        const { targetX, targetY } = getCameraTarget({
+          focusX: focus.x,
+          focusY: focus.y,
+          tileSize,
+          viewW,
+          viewH
+        });
+        if (!state2.camera.isManual) {
+          state2.camera.x = targetX;
+          state2.camera.y = targetY;
+        } else {
+          const px = focus.x * tileSize + tileSize * 0.5;
+          const py = focus.y * tileSize + tileSize * 0.5;
+          const dist = Math.max(
+            Math.abs(state2.camera.x + viewW * 0.5 - px) / tileSize,
+            Math.abs(state2.camera.y + viewH * 0.5 - py) / tileSize
+          );
+          if (dist > cameraSnapThreshold) {
+            state2.camera.x = targetX;
+            state2.camera.y = targetY;
+          } else {
+            state2.camera.x += (targetX - state2.camera.x) * cameraSmoothing;
+            state2.camera.y += (targetY - state2.camera.y) * cameraSmoothing;
+          }
+        }
+        clampCamera();
+      } else {
+        centerCameraOnMe(false);
+      }
+    }
+    function enqueueMove(dx, dy) {
+      if (!hasPositionMove) return;
+      state2.moveQueue.push({ dx, dy });
+    }
+    function processInputQueue() {
+      if (!hasPositionMove) return;
+      if (state2.phase !== "playing" || state2.chat.open || state2.moveQueue.length === 0) return;
+      const now = Date.now();
+      if (now - state2.lastMoveAt < moveCooldownMs) return;
+      const action = state2.moveQueue.shift();
+      if (!action) return;
+      const nx = state2.me.x + action.dx;
+      const ny = state2.me.y + action.dy;
+      const world = getWorldSize();
+      if (nx < 0 || nx >= Math.round(world.w / tileSize) || ny < 0 || ny >= Math.round(world.h / tileSize)) return;
+      state2.me.x = nx;
+      state2.me.y = ny;
+      const me = state2.players.get(state2.myId);
+      if (me) {
+        me.dir = spriteDirection(action.dx, action.dy, me.dir);
+        me.lastMoveAt = now;
+        me.x = nx;
+        me.y = ny;
+      }
+      state2.lastMoveAt = now;
+      socket.emit(events.move, { x: nx, y: ny });
+    }
+    function updateLocalPlayerFromServerMove(id, x, y) {
+      const player = state2.players.get(id);
+      if (!player) return;
+      if (player.x !== x || player.y !== y) {
+        player.dir = spriteDirection(x - player.x, y - player.y, player.dir);
+        player.lastMoveAt = Date.now();
+      }
+      player.x = x;
+      player.y = y;
+      if (id === state2.myId) {
+        state2.me.x = x;
+        state2.me.y = y;
+      }
+    }
+    function registerHoldMove(code, dx, dy) {
+      registerHoldMoveKey({
+        holdControls: state2.holdControls,
+        code,
+        dx,
+        dy,
+        enqueueMove,
+        holdDelayMs,
+        moveCooldownMs
+      });
+    }
+    els.joinForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const pseudo = String(els.pseudoInput.value || "").trim();
+      if (!pseudo) {
+        els.joinError.textContent = "Entre un pseudo.";
+        return;
+      }
+      state2.myPseudo = pseudo;
+      state2.hasJoinedOnce = true;
+      localStorage.setItem("pseudo", pseudo);
+      els.joinError.textContent = "";
+      const payload = {
+        pseudo,
+        avatar: state2.myAvatar,
+        colorIndex: state2.myColorIndex,
+        lobbyId: lobbyIdFromQuery
+      };
+      if (typeof onJoinPayload === "function") Object.assign(payload, onJoinPayload());
+      socket.emit(events.join, payload);
+    });
+    els.chatToggleBtn?.addEventListener("click", () => chatModule.toggleOpen());
+    els.chatForm?.addEventListener("submit", (e) => {
+      e.preventDefault();
+      if (!state2.myId) return;
+      const text = String(els.chatInput?.value || "").replace(/\s+/g, " ").trim();
+      if (!text) return;
+      socket.emit(events.chatSend, { text });
+      if (els.chatInput) {
+        els.chatInput.value = "";
+        els.chatInput.focus();
+      }
+      if (state2.chat.open) chatModule.setTypingStatus(true);
+    });
+    window.addEventListener("resize", resizeCanvas);
+    window.addEventListener("blur", () => {
+      clearAllHoldMoves();
+      if (typeof onWindowBlur === "function") onWindowBlur();
+    });
+    canvas.addEventListener("contextmenu", (e) => e.preventDefault());
+    canvas.addEventListener("mousedown", (e) => {
+      if (state2.chat.open) return;
+      if (e.button === 1) {
+        state2.camera.dragging = true;
+        state2.camera.isManual = true;
+        state2.camera.dragLastX = e.clientX;
+        state2.camera.dragLastY = e.clientY;
+        return;
+      }
+      if (typeof onMousedown === "function") onMousedown(e);
+    });
+    window.addEventListener("mouseup", () => {
+      state2.camera.dragging = false;
+    });
+    window.addEventListener("mousemove", (e) => {
+      if (!state2.camera.dragging) return;
+      state2.camera.x -= (e.clientX - state2.camera.dragLastX) / state2.camera.scale;
+      state2.camera.y -= (e.clientY - state2.camera.dragLastY) / state2.camera.scale;
+      state2.camera.dragLastX = e.clientX;
+      state2.camera.dragLastY = e.clientY;
+      clampCamera();
+    });
+    canvas.addEventListener("wheel", (e) => {
+      if (state2.chat.open) return;
+      e.preventDefault();
+      const rect = canvas.getBoundingClientRect();
+      const sx = e.clientX - rect.left;
+      const sy = e.clientY - rect.top;
+      const worldX = state2.camera.x + sx / state2.camera.scale;
+      const worldY = state2.camera.y + sy / state2.camera.scale;
+      const delta = e.deltaY < 0 ? 1.12 : 0.88;
+      const next = clamp(state2.camera.scale * delta, minScale, maxScale);
+      state2.camera.scale = next;
+      state2.camera.x = worldX - sx / next;
+      state2.camera.y = worldY - sy / next;
+      state2.camera.isManual = true;
+      clampCamera();
+    }, { passive: false });
+    window.addEventListener("keydown", (e) => {
+      if (e.code === "Tab") {
+        e.preventDefault();
+        chatModule.toggleOpen();
+        return;
+      }
+      if (state2.chat.open) {
+        if (e.code === "Escape") {
+          e.preventDefault();
+          chatModule.setOpen(false, false);
+          return;
+        }
+        if (e.code === "Enter" && document.activeElement !== els.chatInput) {
+          e.preventDefault();
+          els.chatInput?.focus();
+        }
+        return;
+      }
+      if (typeof onKeydown === "function") {
+        const handled = onKeydown(e);
+        if (handled) return;
+      }
+      if (hasPositionMove) {
+        const delta = MOVE_KEY_DELTAS[e.code];
+        if (delta) registerHoldMove(e.code, delta[0], delta[1]);
+      }
+    });
+    window.addEventListener("keyup", (e) => {
+      if (hasPositionMove) clearHoldMoveKey(state2.holdControls, e.code);
+    });
+    function emitJoin() {
+      const payload = {
+        pseudo: state2.myPseudo,
+        avatar: state2.myAvatar,
+        colorIndex: state2.myColorIndex,
+        lobbyId: lobbyIdFromQuery
+      };
+      if (typeof onJoinPayload === "function") Object.assign(payload, onJoinPayload());
+      socket.emit(events.join, payload);
+    }
+    registerCommonSocketLifecycle({
+      socket,
+      events,
+      state: state2,
+      stateEvents,
+      onConnect: () => {
+        state2.myId = socket.id;
+        els.reconnect.classList.add("hidden");
+        if (state2.hasJoinedOnce && state2.myPseudo) emitJoin();
+      },
+      onDisconnect: () => {
+        clearAllHoldMoves();
+        if (state2.hasJoinedOnce) els.reconnect.classList.remove("hidden");
+      },
+      onJoinError: (payload = {}) => {
+        state2.phase = "lobby";
+        els.lobby.classList.remove("hidden");
+        els.joinError.textContent = payload.message || "Impossible de rejoindre.";
+      },
+      onState: (payload) => {
+        if (typeof onApplyState === "function") onApplyState(payload);
+      },
+      onPlayerJoined: (payload) => {
+        if (typeof onPlayerJoined === "function") onPlayerJoined(payload);
+      },
+      onPlayerLeft: (payload) => {
+        if (typeof onPlayerLeft === "function") onPlayerLeft(payload);
+        else state2.players.delete(payload.id);
+      },
+      onChatMessage: (entry) => chatModule.appendMessage(entry),
+      onChatTyping: (payload = {}) => {
+        const player = state2.players.get(payload.id);
+        if (player) player.isTyping = Boolean(payload.active);
+      }
+    });
+    if (hasPositionMove && events.playerMoved) {
+      socket.on(events.playerMoved, (payload) => {
+        updateLocalPlayerFromServerMove(payload.id, payload.x, payload.y);
+      });
+    }
+    if (typeof extraSocketSetup === "function") {
+      extraSocketSetup(socket);
+    }
+    const rememberedPseudo = localStorage.getItem("pseudo");
+    if (rememberedPseudo) els.pseudoInput.value = rememberedPseudo;
+    identityModule.setupAvatarPicker();
+    identityModule.setupColorPicker();
+    const savedAvatar = localStorage.getItem("avatar");
+    if (savedAvatar !== null) identityModule.setMyAvatar(savedAvatar, false);
+    const savedColor = localStorage.getItem("colorIndex");
+    if (savedColor !== null) identityModule.setMyColorIndex(savedColor, false);
+    chatModule.setMessages([]);
+    chatModule.setOpen(false, false);
+    function resizeCanvas() {
+      const w = Math.floor(window.innerWidth);
+      const h = Math.floor(window.innerHeight);
+      canvas.width = w;
+      canvas.height = h;
+      canvas.style.width = `${w}px`;
+      canvas.style.height = `${h}px`;
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.imageSmoothingEnabled = false;
+      centerCameraOnMe(true);
+    }
+    function drawAvatarPickerPreview(now) {
+      if (els.lobby.classList.contains("hidden")) return;
+      identityModule.drawAvatarPickerPreview({
+        now,
+        sprites: sprites2,
+        animIdleMs,
+        frameSize: animalFrame,
+        frameCols: animalCols,
+        fallbackColor: "#d7e3ff"
+      });
+    }
+    function startGameLoop() {
+      if (state2.loopStarted) return;
+      state2.loopStarted = true;
+      function tick() {
+        updateCamera();
+        processInputQueue();
+        if (typeof onRender === "function") onRender(Date.now());
+        drawAvatarPickerPreview(Date.now());
+        if (typeof onUpdateHud === "function") onUpdateHud();
+        requestAnimationFrame(tick);
+      }
+      requestAnimationFrame(tick);
+    }
+    resizeCanvas();
+    if (typeof onInit === "function") onInit();
+    startGameLoop();
+    return {
+      state: state2,
+      socket,
+      canvas,
+      ctx,
+      els,
+      sprites: sprites2,
+      lobbyIdFromQuery,
+      chatModule,
+      identityModule,
+      hudModule,
+      centerCameraOnMe,
+      clampCamera,
+      clearAllHoldMoves,
+      enqueueMove,
+      updateLocalPlayerFromServerMove
+    };
+  }
+
+  // src/client/modules/player/drawLabels.js
+  function drawPlayerLabels(ctx, labels) {
+    ctx.font = "10px monospace";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    for (const label of labels) {
+      if (label.isTyping) {
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = "#000000";
+        ctx.strokeText("ecrit...", label.x, label.y - 12);
+        ctx.fillStyle = "#ffd28f";
+        ctx.fillText("ecrit...", label.x, label.y - 12);
+      }
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = "#000000";
+      ctx.strokeText(label.text, label.x, label.y);
+      ctx.fillStyle = label.color || "#ffffff";
+      ctx.fillText(label.text, label.x, label.y);
+    }
+  }
+
   // src/client/modes/mines/index.js
   var GRID_W = 70;
   var GRID_H = 70;
   var TOTAL_CELLS = GRID_W * GRID_H;
   var TILE_SIZE = 32;
-  var MIN_SCALE = 0.3;
-  var MAX_SCALE = 2;
-  var MOVE_COOLDOWN_MS = 120;
-  var HOLD_DELAY_MS = 300;
-  var WALK_WINDOW_MS = 240;
   var ANIM_IDLE_MS = 220;
   var ANIM_RUN_MS = 85;
   var ANIMAL_FRAME = 32;
   var ANIMAL_COLS = 4;
+  var WALK_WINDOW_MS = 240;
   var DIG_FRAME_MS = 60;
   var DIG_FRAMES = 4;
   var DIG_LOOPS = 2;
@@ -525,126 +1106,14 @@
     7: "#ffffff",
     8: "#ff44ff"
   };
-  var socket = io();
-  var canvas = document.getElementById("gameCanvas");
-  var ctx = canvas.getContext("2d");
-  var lobbyEl = document.getElementById("lobby");
-  var joinFormEl = document.getElementById("joinForm");
-  var pseudoInputEl = document.getElementById("pseudoInput");
-  var joinErrorEl = document.getElementById("joinError");
-  var avatarPickerEl = document.getElementById("avatarPicker");
-  var avatarOptionEls = Array.from(document.querySelectorAll(".avatar-option"));
-  var reconnectEl = document.getElementById("reconnect");
-  var hudEl = document.getElementById("hud");
-  var hudBombsEl = document.getElementById("hudBombs");
-  var hudTimeEl = document.getElementById("hudTime");
-  var hudPlayersEl = document.getElementById("hudPlayers");
-  var hudFlagsEl = document.getElementById("hudFlags");
-  var hudRevealedEl = document.getElementById("hudRevealed");
-  var statsOverlayEl = document.getElementById("statsOverlay");
-  var statsTitleEl = document.getElementById("statsTitle");
-  var statsDurationEl = document.getElementById("statsDuration");
-  var statsMiniMapEl = document.getElementById("statsMiniMap");
-  var statsTableBodyEl = document.getElementById("statsTableBody");
-  var explosionListEl = document.getElementById("explosionList");
-  var statsCountdownEl = document.getElementById("statsCountdown");
-  var chatDockEl = document.getElementById("chatDock");
-  var chatToggleBtnEl = document.getElementById("chatToggleBtn");
-  var chatMessagesEl = document.getElementById("chatMessages");
-  var chatFormEl = document.getElementById("chatForm");
-  var chatInputEl = document.getElementById("chatInput");
-  var colorPickerEl = document.getElementById("colorPicker");
-  var lobbyIdFromQuery = (() => {
-    const raw = new URLSearchParams(window.location.search).get("lobby");
-    const value = String(raw || "").trim().toLowerCase();
-    return value || null;
-  })();
-  function idx(x, y) {
-    return y * GRID_W + x;
-  }
-  function isInBounds(x, y) {
-    return x >= 0 && x < GRID_W && y >= 0 && y < GRID_H;
-  }
-  var identityModule = createIdentityModule({
-    state,
-    avatarOptionEls,
-    colorPickerEl,
-    normalizeAvatarIndex,
-    normalizeColorIndex,
-    playerColors: PLAYER_COLORS,
-    avatarStorageKey: "avatar",
-    colorStorageKey: "colorIndex"
-  });
-  var chatModule = createChatModule({
-    state,
-    chatDockEl,
-    chatFormEl,
-    chatMessagesEl,
-    chatInputEl,
-    resolveColorForPseudo: colorForPseudo,
-    emitTyping: (active) => {
-      socket.emit(MINES_EVENTS.chatTyping, { active });
-    },
-    maxMessages: CHAT_MAX_MESSAGES,
-    closedVisibleMessages: CHAT_CLOSED_VISIBLE_MESSAGES,
-    getMyId: () => state.myId,
-    onOpen: () => {
-      clearAllHoldMoves();
-      state.moveQueue = [];
-      state.camera.dragging = false;
-    },
-    onLocalTypingChanged: (active) => {
-      const me = state.players.get(state.myId);
-      if (me) {
-        me.isTyping = active;
-      }
-    }
-  });
-  var hudModule = createHudModule({ rootEl: hudEl });
-  function updateAvatarSelectionUI() {
-    identityModule.updateAvatarSelectionUI();
-  }
-  function setMyAvatar(value, persist = true) {
-    identityModule.setMyAvatar(value, persist);
-  }
-  function updateColorSelectionUI() {
-    identityModule.updateColorSelectionUI();
-  }
-  function setMyColorIndex(value, persist = true) {
-    identityModule.setMyColorIndex(value, persist);
-  }
-  function setupColorPicker() {
-    identityModule.setupColorPicker();
-  }
-  function setupAvatarPicker() {
-    identityModule.setupAvatarPicker();
-  }
-  function drawAvatarPickerPreview(now) {
-    if (lobbyEl.classList.contains("hidden")) return;
-    identityModule.drawAvatarPickerPreview({
-      now,
-      sprites: assets.sprites,
-      animIdleMs: ANIM_IDLE_MS,
-      frameSize: ANIMAL_FRAME,
-      frameCols: ANIMAL_COLS,
-      fallbackColor: "#d7e3ff"
-    });
-  }
-  function setChatMessages(messages) {
-    chatModule.setMessages(messages);
-  }
-  function appendChatMessage(entry) {
-    chatModule.appendMessage(entry);
-  }
-  function setTypingStatus(active) {
-    chatModule.setTypingStatus(active);
-  }
-  function setChatOpen(open, focusInput = true) {
-    chatModule.setOpen(open, focusInput);
-  }
-  function toggleChat() {
-    chatModule.toggleOpen();
-  }
+  var sprites = [
+    loadImage("/assets/BIRDSPRITESHEET_Blue.png"),
+    loadImage("/assets/BIRDSPRITESHEET_White.png"),
+    loadImage("/assets/CATSPRITESHEET_Gray.png"),
+    loadImage("/assets/CATSPRITESHEET_Orange.png"),
+    loadImage("/assets/FOXSPRITESHEET.png"),
+    loadImage("/assets/RACCOONSPRITESHEET.png")
+  ];
   var assets = {
     tiles: {
       grass: loadImage("/assets/herbe.png"),
@@ -668,14 +1137,6 @@
         terre_coin_bas_droite: loadImage("/assets/terre_coin_bas_droite.png")
       }
     },
-    sprites: [
-      loadImage("/assets/BIRDSPRITESHEET_Blue.png"),
-      loadImage("/assets/BIRDSPRITESHEET_White.png"),
-      loadImage("/assets/CATSPRITESHEET_Gray.png"),
-      loadImage("/assets/CATSPRITESHEET_Orange.png"),
-      loadImage("/assets/FOXSPRITESHEET.png"),
-      loadImage("/assets/RACCOONSPRITESHEET.png")
-    ],
     shovels: [
       loadImage("/assets/shovel_bird_blue.png"),
       loadImage("/assets/shovel_bird_white.png"),
@@ -690,11 +1151,6 @@
     }
   };
   var state = {
-    phase: "lobby",
-    myId: null,
-    myPseudo: null,
-    myAvatar: 0,
-    myColorIndex: 0,
     map: {
       width: GRID_W,
       height: GRID_H,
@@ -708,100 +1164,93 @@
     },
     grid: new Int8Array(TOTAL_CELLS),
     flags: /* @__PURE__ */ new Map(),
-    players: /* @__PURE__ */ new Map(),
     revealedSafeCount: 0,
     explosions: 0,
     maxExplosions: 10,
-    startTime: null,
-    camera: {
-      x: 0,
-      y: 0,
-      scale: 1,
-      isManual: false,
-      dragging: false,
-      dragLastX: 0,
-      dragLastY: 0
-    },
-    me: {
-      x: 0,
-      y: 0
-    },
-    moveQueue: [],
-    lastMoveAt: 0,
-    holdControls: /* @__PURE__ */ new Map(),
     activeExplosions: [],
     activeDigs: /* @__PURE__ */ new Map(),
     explodedCells: /* @__PURE__ */ new Set(),
-    hasJoinedOnce: false,
-    loopStarted: false,
     statsCountdown: 60,
-    statsCountdownTimer: null,
-    chat: {
-      open: false,
-      typingSent: false,
-      messages: []
-    }
+    statsCountdownTimer: null
   };
   state.grid.fill(-2);
+  var statsOverlayEl = document.getElementById("statsOverlay");
+  var statsTitleEl = document.getElementById("statsTitle");
+  var statsDurationEl = document.getElementById("statsDuration");
+  var statsMiniMapEl = document.getElementById("statsMiniMap");
+  var statsTableBodyEl = document.getElementById("statsTableBody");
+  var explosionListEl = document.getElementById("explosionList");
+  var statsCountdownEl = document.getElementById("statsCountdown");
+  var hudBombsEl = document.getElementById("hudBombs");
+  var hudTimeEl = document.getElementById("hudTime");
+  var hudPlayersEl = document.getElementById("hudPlayers");
+  var hudFlagsEl = document.getElementById("hudFlags");
+  var hudRevealedEl = document.getElementById("hudRevealed");
+  function idx(x, y) {
+    return y * GRID_W + x;
+  }
+  function playerSheet(player) {
+    if (Number.isInteger(player.avatar)) return sprites[normalizeAvatarIndex(player.avatar)];
+    return sprites[hashPseudo(player.pseudo) % sprites.length];
+  }
+  function shovelSheet(player) {
+    if (Number.isInteger(player.avatar)) return assets.shovels[normalizeAvatarIndex(player.avatar)] || null;
+    return assets.shovels[hashPseudo(player.pseudo) % assets.shovels.length] || null;
+  }
+  function playerHasDigAnim(player) {
+    const s = shovelSheet(player);
+    return Boolean(s && s.loaded);
+  }
+  function getDigFrame(playerId, now) {
+    const startedAt = state.activeDigs.get(playerId);
+    if (!startedAt) return null;
+    const elapsed = now - startedAt;
+    const fi = Math.floor(elapsed / DIG_FRAME_MS);
+    if (fi >= DIG_FRAMES * DIG_LOOPS) {
+      state.activeDigs.delete(playerId);
+      return null;
+    }
+    return fi % DIG_FRAMES;
+  }
   function tileSheetInfo(image) {
     const cols = image.loaded ? Math.max(1, Math.floor(image.width / TILE_SIZE)) : 3;
-    const rows = image.loaded ? Math.max(1, Math.floor(image.height / TILE_SIZE)) : 3;
-    return { cols, rows };
+    return { cols };
   }
-  function drawSheetTile(image, col, row, dx, dy) {
-    if (!image.loaded) {
-      return false;
-    }
-    ctx.drawImage(
-      image,
-      col * TILE_SIZE,
-      row * TILE_SIZE,
-      TILE_SIZE,
-      TILE_SIZE,
-      dx,
-      dy,
-      TILE_SIZE,
-      TILE_SIZE
-    );
+  function drawSheetTile(ctx, image, col, row, dx, dy) {
+    if (!image.loaded) return false;
+    ctx.drawImage(image, col * TILE_SIZE, row * TILE_SIZE, TILE_SIZE, TILE_SIZE, dx, dy, TILE_SIZE, TILE_SIZE);
     return true;
   }
   function getBorderTile(variantCols, x, y) {
     const last = variantCols - 1;
-    const middleA = variantCols > 3 ? 1 : Math.min(1, last);
-    const middleB = variantCols > 3 ? last - 1 : Math.max(0, last - 1);
-    const onLeft = x === 0;
-    const onRight = x === GRID_W - 1;
-    const onTop = y === 0;
-    const onBottom = y === GRID_H - 1;
-    if (onTop && onLeft) return { col: 0, row: 0 };
-    if (onTop && onRight) return { col: last, row: 0 };
-    if (onBottom && onLeft) return { col: 0, row: last };
-    if (onBottom && onRight) return { col: last, row: last };
-    if (onTop) return { col: x % 2 === 0 ? middleA : middleB, row: 0 };
-    if (onBottom) return { col: x % 2 === 0 ? middleA : middleB, row: last };
-    if (onLeft) return { col: 0, row: y % 2 === 0 ? middleA : middleB };
-    if (onRight) return { col: last, row: y % 2 === 0 ? middleA : middleB };
-    return { col: middleA, row: middleA };
+    const mA = variantCols > 3 ? 1 : Math.min(1, last);
+    const mB = variantCols > 3 ? last - 1 : Math.max(0, last - 1);
+    const onL = x === 0, onR = x === GRID_W - 1, onT = y === 0, onB = y === GRID_H - 1;
+    if (onT && onL) return { col: 0, row: 0 };
+    if (onT && onR) return { col: last, row: 0 };
+    if (onB && onL) return { col: 0, row: last };
+    if (onB && onR) return { col: last, row: last };
+    if (onT) return { col: x % 2 === 0 ? mA : mB, row: 0 };
+    if (onB) return { col: x % 2 === 0 ? mA : mB, row: last };
+    if (onL) return { col: 0, row: y % 2 === 0 ? mA : mB };
+    if (onR) return { col: last, row: y % 2 === 0 ? mA : mB };
+    return { col: mA, row: mA };
   }
-  function drawCell(x, y) {
+  function drawCell(ctx, x, y) {
     const i = idx(x, y);
-    const px = x * TILE_SIZE;
-    const py = y * TILE_SIZE;
-    const value = state.grid[i];
-    const hidden = value === -2;
+    const px = x * TILE_SIZE, py = y * TILE_SIZE;
+    const hidden = state.grid[i] === -2;
     if (hidden) {
       const { cols } = tileSheetInfo(assets.tiles.grass);
       const t = getBorderTile(cols, x, y);
-      const painted = drawSheetTile(assets.tiles.grass, t.col, t.row, px, py);
-      if (!painted) {
+      if (!drawSheetTile(ctx, assets.tiles.grass, t.col, t.row, px, py)) {
         ctx.fillStyle = "#7db24f";
         ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
       }
     } else {
       const { cols } = tileSheetInfo(assets.tiles.dirt);
       const t = getBorderTile(cols, x, y);
-      const painted = drawSheetTile(assets.tiles.dirt, t.col, t.row, px, py);
-      if (!painted) {
+      if (!drawSheetTile(ctx, assets.tiles.dirt, t.col, t.row, px, py)) {
         ctx.fillStyle = "#8b5a34";
         ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
       }
@@ -812,15 +1261,82 @@
       ctx.strokeRect(px + 1, py + 1, TILE_SIZE - 2, TILE_SIZE - 2);
     }
   }
-  function drawFlags(minX, maxX, minY, maxY) {
+  function cellIsGrass(x, y) {
+    return state.grid[idx(x, y)] === -2;
+  }
+  function isBorderCell(x, y) {
+    return x === 0 || y === 0 || x === GRID_W - 1 || y === GRID_H - 1;
+  }
+  function drawVerticalTransition(ctx, x, y, leftGrass) {
+    const image = leftGrass ? assets.transitions.edge.herbe_gauche_terre_droite : assets.transitions.edge.herbe_droite_terre_gauche;
+    if (!image.loaded) return;
+    const px = x * TILE_SIZE, py = y * TILE_SIZE;
+    ctx.drawImage(image, 0, 0, TRANSITION_EDGE_HALF, TILE_SIZE, px + TILE_SIZE - TRANSITION_EDGE_HALF, py, TRANSITION_EDGE_HALF, TILE_SIZE);
+    ctx.drawImage(image, TRANSITION_EDGE_HALF, 0, TRANSITION_EDGE_HALF, TILE_SIZE, px + TILE_SIZE, py, TRANSITION_EDGE_HALF, TILE_SIZE);
+  }
+  function drawHorizontalTransition(ctx, x, y, topGrass) {
+    const image = topGrass ? assets.transitions.edge.herbe_haut_terre_bas : assets.transitions.edge.herbe_bas_terre_haut;
+    if (!image.loaded) return;
+    const px = x * TILE_SIZE, py = y * TILE_SIZE;
+    ctx.drawImage(image, 0, 0, TILE_SIZE, TRANSITION_EDGE_HALF, px, py + TILE_SIZE - TRANSITION_EDGE_HALF, TILE_SIZE, TRANSITION_EDGE_HALF);
+    ctx.drawImage(image, 0, TRANSITION_EDGE_HALF, TILE_SIZE, TRANSITION_EDGE_HALF, px, py + TILE_SIZE, TILE_SIZE, TRANSITION_EDGE_HALF);
+  }
+  function drawCornerTransition(ctx, image, x, y, shiftX, shiftY) {
+    if (!image || !image.loaded) return;
+    const px = x * TILE_SIZE, py = y * TILE_SIZE;
+    const src = TRANSITION_CORNER_QUAD, draw = TRANSITION_CORNER_DRAW;
+    const ox = px + TILE_SIZE - draw + shiftX, oy = py + TILE_SIZE - draw + shiftY;
+    ctx.drawImage(image, 0, 0, src, src, ox, oy, draw, draw);
+    ctx.drawImage(image, src, 0, src, src, ox + draw, oy, draw, draw);
+    ctx.drawImage(image, 0, src, src, src, ox, oy + draw, draw, draw);
+    ctx.drawImage(image, src, src, src, src, ox + draw, oy + draw, draw, draw);
+  }
+  function pickCornerTransition(tl, tr, bl, br) {
+    const gc = (tl ? 1 : 0) + (tr ? 1 : 0) + (bl ? 1 : 0) + (br ? 1 : 0);
+    if (gc !== 1 && gc !== 3) return null;
+    const s = TRANSITION_CORNER_SHIFT;
+    if (gc === 1) {
+      if (tl) return { image: assets.transitions.corner.herbe_coin_haut_gauche, shiftX: -s, shiftY: -s };
+      if (tr) return { image: assets.transitions.corner.herbe_coin_haut_droite, shiftX: s, shiftY: -s };
+      if (bl) return { image: assets.transitions.corner.herbe_coin_bas_gauche, shiftX: -s, shiftY: s };
+      return { image: assets.transitions.corner.herbe_coin_bas_droite, shiftX: s, shiftY: s };
+    }
+    if (!tl) return { image: assets.transitions.corner.terre_coin_haut_gauche, shiftX: -s, shiftY: -s };
+    if (!tr) return { image: assets.transitions.corner.terre_coin_haut_droite, shiftX: s, shiftY: -s };
+    if (!bl) return { image: assets.transitions.corner.terre_coin_bas_gauche, shiftX: -s, shiftY: s };
+    return { image: assets.transitions.corner.terre_coin_bas_droite, shiftX: s, shiftY: s };
+  }
+  function drawTransitions(ctx, minX, maxX, minY, maxY) {
+    for (let y = minY; y <= maxY; y++) {
+      for (let x = minX; x < maxX; x++) {
+        if (isBorderCell(x, y) || isBorderCell(x + 1, y)) continue;
+        const lg = cellIsGrass(x, y), rg = cellIsGrass(x + 1, y);
+        if (lg !== rg) drawVerticalTransition(ctx, x, y, lg);
+      }
+    }
+    for (let y = minY; y < maxY; y++) {
+      for (let x = minX; x <= maxX; x++) {
+        if (isBorderCell(x, y) || isBorderCell(x, y + 1)) continue;
+        const tg = cellIsGrass(x, y), bg = cellIsGrass(x, y + 1);
+        if (tg !== bg) drawHorizontalTransition(ctx, x, y, tg);
+      }
+    }
+    for (let y = minY; y < maxY; y++) {
+      for (let x = minX; x < maxX; x++) {
+        if (isBorderCell(x, y) || isBorderCell(x + 1, y) || isBorderCell(x, y + 1) || isBorderCell(x + 1, y + 1)) continue;
+        const corner = pickCornerTransition(cellIsGrass(x, y), cellIsGrass(x + 1, y), cellIsGrass(x, y + 1), cellIsGrass(x + 1, y + 1));
+        if (corner) drawCornerTransition(ctx, corner.image, x, y, corner.shiftX, corner.shiftY);
+      }
+    }
+  }
+  function drawFlags(ctx, minX, maxX, minY, maxY) {
     ctx.strokeStyle = "#ffffff";
     ctx.lineWidth = 2;
     for (let y = minY; y <= maxY; y++) {
       for (let x = minX; x <= maxX; x++) {
         const i = idx(x, y);
         if (!state.flags.has(i) || state.grid[i] !== -2) continue;
-        const px = x * TILE_SIZE;
-        const py = y * TILE_SIZE;
+        const px = x * TILE_SIZE, py = y * TILE_SIZE;
         ctx.beginPath();
         ctx.moveTo(px + 12, py + 7);
         ctx.lineTo(px + 12, py + 24);
@@ -835,168 +1351,36 @@
       }
     }
   }
-  function cellIsGrass(x, y) {
-    return state.grid[idx(x, y)] === -2;
-  }
-  function isBorderCell(x, y) {
-    return x === 0 || y === 0 || x === GRID_W - 1 || y === GRID_H - 1;
-  }
-  function drawVerticalTransitionShared(x, y, leftGrass) {
-    const image = leftGrass ? assets.transitions.edge.herbe_gauche_terre_droite : assets.transitions.edge.herbe_droite_terre_gauche;
-    if (!image.loaded) return;
-    const px = x * TILE_SIZE;
-    const py = y * TILE_SIZE;
-    ctx.drawImage(
-      image,
-      0,
-      0,
-      TRANSITION_EDGE_HALF,
-      TILE_SIZE,
-      px + TILE_SIZE - TRANSITION_EDGE_HALF,
-      py,
-      TRANSITION_EDGE_HALF,
-      TILE_SIZE
-    );
-    ctx.drawImage(
-      image,
-      TRANSITION_EDGE_HALF,
-      0,
-      TRANSITION_EDGE_HALF,
-      TILE_SIZE,
-      px + TILE_SIZE,
-      py,
-      TRANSITION_EDGE_HALF,
-      TILE_SIZE
-    );
-  }
-  function drawHorizontalTransitionShared(x, y, topGrass) {
-    const image = topGrass ? assets.transitions.edge.herbe_haut_terre_bas : assets.transitions.edge.herbe_bas_terre_haut;
-    if (!image.loaded) return;
-    const px = x * TILE_SIZE;
-    const py = y * TILE_SIZE;
-    ctx.drawImage(
-      image,
-      0,
-      0,
-      TILE_SIZE,
-      TRANSITION_EDGE_HALF,
-      px,
-      py + TILE_SIZE - TRANSITION_EDGE_HALF,
-      TILE_SIZE,
-      TRANSITION_EDGE_HALF
-    );
-    ctx.drawImage(
-      image,
-      0,
-      TRANSITION_EDGE_HALF,
-      TILE_SIZE,
-      TRANSITION_EDGE_HALF,
-      px,
-      py + TILE_SIZE,
-      TILE_SIZE,
-      TRANSITION_EDGE_HALF
-    );
-  }
-  function drawCornerTransitionShared(image, x, y, shiftX, shiftY) {
-    if (!image || !image.loaded) return;
-    const px = x * TILE_SIZE;
-    const py = y * TILE_SIZE;
-    const src = TRANSITION_CORNER_QUAD;
-    const draw = TRANSITION_CORNER_DRAW;
-    const ox = px + TILE_SIZE - draw + shiftX;
-    const oy = py + TILE_SIZE - draw + shiftY;
-    ctx.drawImage(image, 0, 0, src, src, ox, oy, draw, draw);
-    ctx.drawImage(image, src, 0, src, src, ox + draw, oy, draw, draw);
-    ctx.drawImage(image, 0, src, src, src, ox, oy + draw, draw, draw);
-    ctx.drawImage(image, src, src, src, src, ox + draw, oy + draw, draw, draw);
-  }
-  function pickCornerTransition(tl, tr, bl, br) {
-    const grassCount = (tl ? 1 : 0) + (tr ? 1 : 0) + (bl ? 1 : 0) + (br ? 1 : 0);
-    if (grassCount !== 1 && grassCount !== 3) return null;
-    const s = TRANSITION_CORNER_SHIFT;
-    if (grassCount === 1) {
-      if (tl) return { image: assets.transitions.corner.herbe_coin_haut_gauche, shiftX: -s, shiftY: -s };
-      if (tr) return { image: assets.transitions.corner.herbe_coin_haut_droite, shiftX: s, shiftY: -s };
-      if (bl) return { image: assets.transitions.corner.herbe_coin_bas_gauche, shiftX: -s, shiftY: s };
-      return { image: assets.transitions.corner.herbe_coin_bas_droite, shiftX: s, shiftY: s };
-    }
-    if (!tl) return { image: assets.transitions.corner.terre_coin_haut_gauche, shiftX: -s, shiftY: -s };
-    if (!tr) return { image: assets.transitions.corner.terre_coin_haut_droite, shiftX: s, shiftY: -s };
-    if (!bl) return { image: assets.transitions.corner.terre_coin_bas_gauche, shiftX: -s, shiftY: s };
-    return { image: assets.transitions.corner.terre_coin_bas_droite, shiftX: s, shiftY: s };
-  }
-  function drawTransitions(minX, maxX, minY, maxY) {
-    for (let y = minY; y <= maxY; y++) {
-      for (let x = minX; x < maxX; x++) {
-        if (isBorderCell(x, y) || isBorderCell(x + 1, y)) continue;
-        const leftGrass = cellIsGrass(x, y);
-        const rightGrass = cellIsGrass(x + 1, y);
-        if (leftGrass !== rightGrass) {
-          drawVerticalTransitionShared(x, y, leftGrass);
-        }
-      }
-    }
-    for (let y = minY; y < maxY; y++) {
-      for (let x = minX; x <= maxX; x++) {
-        if (isBorderCell(x, y) || isBorderCell(x, y + 1)) continue;
-        const topGrass = cellIsGrass(x, y);
-        const bottomGrass = cellIsGrass(x, y + 1);
-        if (topGrass !== bottomGrass) {
-          drawHorizontalTransitionShared(x, y, topGrass);
-        }
-      }
-    }
-    for (let y = minY; y < maxY; y++) {
-      for (let x = minX; x < maxX; x++) {
-        if (isBorderCell(x, y) || isBorderCell(x + 1, y) || isBorderCell(x, y + 1) || isBorderCell(x + 1, y + 1)) {
-          continue;
-        }
-        const tl = cellIsGrass(x, y);
-        const tr = cellIsGrass(x + 1, y);
-        const bl = cellIsGrass(x, y + 1);
-        const br = cellIsGrass(x + 1, y + 1);
-        const corner = pickCornerTransition(tl, tr, bl, br);
-        if (!corner) continue;
-        drawCornerTransitionShared(corner.image, x, y, corner.shiftX, corner.shiftY);
-      }
-    }
-  }
-  function drawNumbers(minX, maxX, minY, maxY) {
+  function drawNumbers(ctx, minX, maxX, minY, maxY) {
     ctx.font = "bold 16px monospace";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     for (let y = minY; y <= maxY; y++) {
       for (let x = minX; x <= maxX; x++) {
-        const value = state.grid[idx(x, y)];
-        if (value <= 0) continue;
-        const px = x * TILE_SIZE;
-        const py = y * TILE_SIZE;
-        ctx.fillStyle = NUMBER_COLORS[value] || "#ffffff";
-        ctx.fillText(String(value), px + TILE_SIZE * 0.5, py + TILE_SIZE * 0.52);
+        const v = state.grid[idx(x, y)];
+        if (v <= 0) continue;
+        ctx.fillStyle = NUMBER_COLORS[v] || "#ffffff";
+        ctx.fillText(String(v), x * TILE_SIZE + TILE_SIZE * 0.5, y * TILE_SIZE + TILE_SIZE * 0.52);
       }
     }
   }
-  function drawBombs(minX, maxX, minY, maxY) {
+  function drawBombs(ctx, minX, maxX, minY, maxY) {
     const inStats = state.phase === "stats";
     for (let y = minY; y <= maxY; y++) {
       for (let x = minX; x <= maxX; x++) {
         const i = idx(x, y);
         const hidden = state.grid[i] === -2;
-        const shouldDraw = inStats && state.map.bombs[i] === 1 || !hidden && state.grid[i] === -1;
-        if (!shouldDraw) continue;
-        const px = x * TILE_SIZE;
-        const py = y * TILE_SIZE;
+        if (!(inStats && state.map.bombs[i] === 1 || !hidden && state.grid[i] === -1)) continue;
+        const px = x * TILE_SIZE, py = y * TILE_SIZE;
         if (assets.fx.bomb.loaded) {
-          const bx = px + (TILE_SIZE - BOMB_DRAW_W) * 0.5;
-          const by = py + (TILE_SIZE - BOMB_DRAW_H) * 0.5;
           ctx.drawImage(
             assets.fx.bomb,
             BOMB_SRC_X,
             BOMB_SRC_Y,
             BOMB_SRC_W,
             BOMB_SRC_H,
-            bx,
-            by,
+            px + (TILE_SIZE - BOMB_DRAW_W) * 0.5,
+            py + (TILE_SIZE - BOMB_DRAW_H) * 0.5,
             BOMB_DRAW_W,
             BOMB_DRAW_H
           );
@@ -1009,112 +1393,39 @@
       }
     }
   }
-  function spriteDirection(dx, dy, previous = "down") {
-    if (Math.abs(dx) > Math.abs(dy)) {
-      return dx < 0 ? "left" : "right";
+  function drawExplosionAtCell(ctx, x, y, frame) {
+    if (!assets.fx.explosion.loaded) return;
+    const px = x * TILE_SIZE + (TILE_SIZE - EXPLOSION_DRAW_SIZE) * 0.5;
+    const py = y * TILE_SIZE + (TILE_SIZE - EXPLOSION_DRAW_SIZE) * 0.5;
+    ctx.drawImage(assets.fx.explosion, frame * EXPLOSION_FRAME_W, 0, EXPLOSION_FRAME_W, EXPLOSION_FRAME_H, px, py, EXPLOSION_DRAW_SIZE, EXPLOSION_DRAW_SIZE);
+  }
+  function bucketExplosions(now) {
+    const byCell = /* @__PURE__ */ new Map();
+    const alive = [];
+    for (const fx of state.activeExplosions) {
+      const frame = Math.floor((now - fx.startedAt) / EXPLOSION_FRAME_MS);
+      if (frame >= EXPLOSION_FRAMES) continue;
+      const key = idx(fx.x, fx.y);
+      if (!byCell.has(key)) byCell.set(key, []);
+      byCell.get(key).push(frame);
+      alive.push(fx);
     }
-    if (dy < 0) return "up";
-    if (dy > 0) return "down";
-    return previous;
+    state.activeExplosions = alive;
+    return byCell;
   }
-  function playerSheetForPlayer(player) {
-    if (Number.isInteger(player.avatar)) {
-      return assets.sprites[normalizeAvatarIndex(player.avatar)];
-    }
-    const fallback = hashPseudo(player.pseudo) % assets.sprites.length;
-    return assets.sprites[fallback];
-  }
-  function shovelSheetForPlayer(player) {
-    if (Number.isInteger(player.avatar)) {
-      return assets.shovels[normalizeAvatarIndex(player.avatar)] || null;
-    }
-    const fallback = hashPseudo(player.pseudo) % assets.shovels.length;
-    return assets.shovels[fallback] || null;
-  }
-  function playerHasLoadedDigAnimation(player) {
-    const sheet = shovelSheetForPlayer(player);
-    return Boolean(sheet && sheet.loaded);
-  }
-  function getDigFrame(playerId, now) {
-    const startedAt = state.activeDigs.get(playerId);
-    if (!startedAt) return null;
-    const elapsed = now - startedAt;
-    const totalFrames = DIG_FRAMES * DIG_LOOPS;
-    const frameIndex = Math.floor(elapsed / DIG_FRAME_MS);
-    if (frameIndex >= totalFrames) {
-      state.activeDigs.delete(playerId);
-      return null;
-    }
-    return frameIndex % DIG_FRAMES;
-  }
-  function applyRevealedCells(cells) {
-    for (const cell of cells || []) {
-      const i = idx(cell.x, cell.y);
-      if (state.grid[i] === -2 && cell.value >= 0) {
-        state.revealedSafeCount += 1;
-      }
-      state.grid[i] = cell.value;
-      state.flags.delete(i);
-      if (cell.value === -1) state.explodedCells.add(i);
-    }
-  }
-  function getSpriteFrame(player, now) {
-    const moving = now - player.lastMoveAt <= WALK_WINDOW_MS;
-    if (!moving) {
-      const rowByDir = { down: 0, right: 1, left: 2, up: 3 };
-      return {
-        row: rowByDir[player.dir] ?? 0,
-        col: Math.floor(now / ANIM_IDLE_MS) % ANIMAL_COLS
-      };
-    }
-    const runRowsByDir = {
-      down: [5, 6],
-      left: [7, 8],
-      right: [9, 10],
-      up: [11, 12]
-    };
-    const rows = runRowsByDir[player.dir] || runRowsByDir.down;
-    const frame = Math.floor(now / ANIM_RUN_MS) % 8;
-    return {
-      row: rows[Math.floor(frame / 4)],
-      col: frame % 4
-    };
-  }
-  function drawPlayer(player, now) {
-    const px = player.x * TILE_SIZE;
-    const py = player.y * TILE_SIZE;
+  function drawPlayer(ctx, player, now) {
+    const px = player.x * TILE_SIZE, py = player.y * TILE_SIZE;
     const stunned = player.stunnedUntil && now < player.stunnedUntil;
-    const blinkLow = stunned && Math.floor(now / 250) % 2 === 0;
-    ctx.globalAlpha = blinkLow ? 0.35 : 1;
-    const sheet = playerSheetForPlayer(player);
+    ctx.globalAlpha = stunned && Math.floor(now / 250) % 2 === 0 ? 0.35 : 1;
+    const sheet = playerSheet(player);
     const digFrame = getDigFrame(player.id, now);
-    const shovelSheet = digFrame !== null ? shovelSheetForPlayer(player) : null;
-    const canDrawDig = shovelSheet && shovelSheet.loaded;
-    if (canDrawDig) {
-      ctx.drawImage(
-        shovelSheet,
-        digFrame * ANIMAL_FRAME,
-        0,
-        ANIMAL_FRAME,
-        ANIMAL_FRAME,
-        px,
-        py,
-        TILE_SIZE,
-        TILE_SIZE
-      );
+    const digSheet = digFrame !== null ? shovelSheet(player) : null;
+    const canDig = digSheet && digSheet.loaded;
+    if (canDig) {
+      ctx.drawImage(digSheet, digFrame * ANIMAL_FRAME, 0, ANIMAL_FRAME, ANIMAL_FRAME, px, py, TILE_SIZE, TILE_SIZE);
     } else if (sheet.loaded) {
-      const frame = getSpriteFrame(player, now);
-      ctx.drawImage(
-        sheet,
-        frame.col * ANIMAL_FRAME,
-        frame.row * ANIMAL_FRAME,
-        ANIMAL_FRAME,
-        ANIMAL_FRAME,
-        px,
-        py,
-        TILE_SIZE,
-        TILE_SIZE
-      );
+      const frame = getSpriteFrame(player, now, { animIdleMs: ANIM_IDLE_MS, animRunMs: ANIM_RUN_MS, cols: ANIMAL_COLS, walkWindowMs: WALK_WINDOW_MS });
+      ctx.drawImage(sheet, frame.col * ANIMAL_FRAME, frame.row * ANIMAL_FRAME, ANIMAL_FRAME, ANIMAL_FRAME, px, py, TILE_SIZE, TILE_SIZE);
     } else {
       ctx.fillStyle = "#ffd86b";
       ctx.fillRect(px + 8, py + 8, 16, 16);
@@ -1128,165 +1439,45 @@
       color: player.color || colorForPseudo(player.pseudo)
     };
   }
-  function drawExplosionAtCell(x, y, frame) {
-    if (!assets.fx.explosion.loaded) return;
-    const px = x * TILE_SIZE + (TILE_SIZE - EXPLOSION_DRAW_SIZE) * 0.5;
-    const py = y * TILE_SIZE + (TILE_SIZE - EXPLOSION_DRAW_SIZE) * 0.5;
-    ctx.drawImage(
-      assets.fx.explosion,
-      frame * EXPLOSION_FRAME_W,
-      0,
-      EXPLOSION_FRAME_W,
-      EXPLOSION_FRAME_H,
-      px,
-      py,
-      EXPLOSION_DRAW_SIZE,
-      EXPLOSION_DRAW_SIZE
-    );
+  function applyRevealedCells(cells) {
+    for (const c of cells || []) {
+      const i = idx(c.x, c.y);
+      if (state.grid[i] === -2 && c.value >= 0) state.revealedSafeCount += 1;
+      state.grid[i] = c.value;
+      state.flags.delete(i);
+      if (c.value === -1) state.explodedCells.add(i);
+    }
   }
-  function bucketExplosions(now) {
-    const byCell = /* @__PURE__ */ new Map();
-    const alive = [];
-    for (const fx of state.activeExplosions) {
-      const elapsed = now - fx.startedAt;
-      const frame = Math.floor(elapsed / EXPLOSION_FRAME_MS);
-      if (frame >= EXPLOSION_FRAMES) continue;
-      const key = idx(fx.x, fx.y);
-      if (!byCell.has(key)) byCell.set(key, []);
-      byCell.get(key).push(frame);
-      alive.push(fx);
+  function applyPlayerPayload(payload) {
+    const previous = state.players.get(payload.id);
+    let avatar = payload.avatar !== void 0 && payload.avatar !== null ? normalizeAvatarIndex(payload.avatar) : previous && Number.isInteger(previous.avatar) ? previous.avatar : payload.id === state.myId ? state.myAvatar : hashPseudo(payload.pseudo) % sprites.length;
+    let colorIndex = payload.colorIndex !== void 0 && payload.colorIndex !== null ? normalizeColorIndex(payload.colorIndex) : previous && Number.isInteger(previous.colorIndex) ? previous.colorIndex : payload.id === state.myId ? state.myColorIndex : hashPseudo(payload.pseudo) % PLAYER_COLORS.length;
+    const player = {
+      id: payload.id,
+      pseudo: payload.pseudo,
+      colorIndex,
+      color: payload.color || PLAYER_COLORS[colorIndex] || colorForPseudo(payload.pseudo),
+      avatar,
+      x: payload.x,
+      y: payload.y,
+      isTyping: Boolean(payload.isTyping),
+      stunnedUntil: payload.stunEndTime || 0,
+      dir: previous ? previous.dir : "down",
+      lastMoveAt: previous ? previous.lastMoveAt : 0
+    };
+    if (previous && (previous.x !== player.x || previous.y !== player.y)) {
+      player.dir = spriteDirection(player.x - previous.x, player.y - previous.y, previous.dir);
+      player.lastMoveAt = Date.now();
     }
-    state.activeExplosions = alive;
-    return byCell;
-  }
-  function renderFrame() {
-    const scale = state.camera.scale;
-    const now = Date.now();
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.setTransform(scale, 0, 0, scale, -state.camera.x * scale, -state.camera.y * scale);
-    const worldW = GRID_W * TILE_SIZE;
-    const worldH = GRID_H * TILE_SIZE;
-    ctx.fillStyle = "#00d9ff";
-    ctx.fillRect(-200, -200, worldW + 400, worldH + 400);
-    const viewW = canvas.width / scale;
-    const viewH = canvas.height / scale;
-    const minX = clamp(Math.floor(state.camera.x / TILE_SIZE) - 1, 0, GRID_W - 1);
-    const maxX = clamp(Math.ceil((state.camera.x + viewW) / TILE_SIZE) + 1, 0, GRID_W - 1);
-    const minY = clamp(Math.floor(state.camera.y / TILE_SIZE) - 1, 0, GRID_H - 1);
-    const maxY = clamp(Math.ceil((state.camera.y + viewH) / TILE_SIZE) + 1, 0, GRID_H - 1);
-    for (let y = minY; y <= maxY; y++) {
-      for (let x = minX; x <= maxX; x++) {
-        drawCell(x, y);
-      }
+    state.players.set(player.id, player);
+    if (player.id === state.myId) {
+      state.myAvatar = player.avatar;
+      game.identityModule.updateAvatarSelectionUI();
+      state.myColorIndex = player.colorIndex;
+      game.identityModule.updateColorSelectionUI();
+      state.me.x = player.x;
+      state.me.y = player.y;
     }
-    drawTransitions(minX, maxX, minY, maxY);
-    drawBombs(minX, maxX, minY, maxY);
-    drawNumbers(minX, maxX, minY, maxY);
-    drawFlags(minX, maxX, minY, maxY);
-    const labels = [];
-    for (const player of state.players.values()) {
-      if (player.x < minX - 1 || player.x > maxX + 1 || player.y < minY - 1 || player.y > maxY + 1) {
-        continue;
-      }
-      labels.push(drawPlayer(player, now));
-    }
-    const explosionsByCell = bucketExplosions(now);
-    for (const [key, frames] of explosionsByCell.entries()) {
-      const x = key % GRID_W;
-      const y = Math.floor(key / GRID_W);
-      for (const frame of frames) {
-        drawExplosionAtCell(x, y, frame);
-      }
-    }
-    ctx.font = "10px monospace";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    for (const label of labels) {
-      if (label.isTyping) {
-        ctx.lineWidth = 2;
-        ctx.strokeStyle = "#000000";
-        ctx.strokeText("ecrit...", label.x, label.y - 12);
-        ctx.fillStyle = "#ffd28f";
-        ctx.fillText("ecrit...", label.x, label.y - 12);
-      }
-      ctx.lineWidth = 2;
-      ctx.strokeStyle = "#000000";
-      ctx.strokeText(label.text, label.x, label.y);
-      ctx.fillStyle = label.color || "#ffffff";
-      ctx.fillText(label.text, label.x, label.y);
-    }
-    drawAvatarPickerPreview(now);
-  }
-  function centerCameraOnMe(immediate = false) {
-    centerCameraOnFocus({
-      camera: state.camera,
-      canvas,
-      tileSize: TILE_SIZE,
-      focusX: state.me.x,
-      focusY: state.me.y,
-      immediate,
-      smoothing: 0.05
-    });
-    clampCamera();
-  }
-  function clampCamera() {
-    clampCameraToWorld({
-      camera: state.camera,
-      canvas,
-      worldW: GRID_W * TILE_SIZE,
-      worldH: GRID_H * TILE_SIZE
-    });
-  }
-  function updateCamera() {
-    if (state.phase === "lobby") return;
-    if (state.camera.dragging) {
-      clampCamera();
-      return;
-    }
-    const { viewW, viewH } = getCameraViewport(state.camera, canvas);
-    const px = state.me.x * TILE_SIZE + TILE_SIZE * 0.5;
-    const py = state.me.y * TILE_SIZE + TILE_SIZE * 0.5;
-    const { targetX, targetY } = getCameraTarget({
-      focusX: state.me.x,
-      focusY: state.me.y,
-      tileSize: TILE_SIZE,
-      viewW,
-      viewH
-    });
-    if (!state.camera.isManual) {
-      state.camera.x = targetX;
-      state.camera.y = targetY;
-    } else {
-      const centerX = state.camera.x + viewW * 0.5;
-      const centerY = state.camera.y + viewH * 0.5;
-      const maxCellDelta = Math.max(
-        Math.abs(centerX - px) / TILE_SIZE,
-        Math.abs(centerY - py) / TILE_SIZE
-      );
-      if (maxCellDelta > 5) {
-        state.camera.x = targetX;
-        state.camera.y = targetY;
-      } else {
-        state.camera.x += (targetX - state.camera.x) * 0.05;
-        state.camera.y += (targetY - state.camera.y) * 0.05;
-      }
-    }
-    clampCamera();
-  }
-  function updateHud() {
-    const playerCount = state.players.size;
-    const flagsCount = state.flags.size;
-    const elapsed = state.startTime ? Date.now() - state.startTime : 0;
-    const safeTotal = Math.max(0, state.map.totalCells - state.map.bombCount);
-    const nearTop = state.me.y <= 3;
-    hudModule.setText(hudBombsEl, `Bombes: ${state.explosions}/${state.maxExplosions}`);
-    hudBombsEl.classList.toggle("bombs-danger", state.explosions >= 7);
-    hudModule.setText(hudTimeEl, msToClock(elapsed));
-    hudModule.setText(hudPlayersEl, `${playerCount} joueurs`);
-    hudModule.setText(hudFlagsEl, `Drapeaux: ${flagsCount}`);
-    hudModule.setText(hudRevealedEl, `Cases revelees: ${state.revealedSafeCount}/${safeTotal}`);
-    hudEl.classList.toggle("near-top", nearTop);
   }
   function clearStatsCountdownTimer() {
     if (!state.statsCountdownTimer) return;
@@ -1299,26 +1490,23 @@
   }
   function drawStatsMiniMap() {
     const mapCtx = statsMiniMapEl.getContext("2d");
-    const cw = statsMiniMapEl.width;
-    const ch = statsMiniMapEl.height;
+    const cw = statsMiniMapEl.width, ch = statsMiniMapEl.height;
     mapCtx.clearRect(0, 0, cw, ch);
     mapCtx.fillStyle = "#0b0f1c";
     mapCtx.fillRect(0, 0, cw, ch);
     const cell = Math.max(1, Math.floor(Math.min(cw / GRID_W, ch / GRID_H)));
-    const offsetX = Math.floor((cw - GRID_W * cell) / 2);
-    const offsetY = Math.floor((ch - GRID_H * cell) / 2);
+    const ox = Math.floor((cw - GRID_W * cell) / 2), oy = Math.floor((ch - GRID_H * cell) / 2);
     for (let y = 0; y < GRID_H; y++) {
       for (let x = 0; x < GRID_W; x++) {
         const i = idx(x, y);
-        const px = offsetX + x * cell;
-        const py = offsetY + y * cell;
+        const px = ox + x * cell, py = oy + y * cell;
         if (state.map.bombs[i]) {
-          const exploded = state.explodedCells.has(i);
-          mapCtx.fillStyle = exploded ? "#ff0000" : "#666666";
-          mapCtx.fillRect(px, py, cell, cell);
+          mapCtx.fillStyle = state.explodedCells.has(i) ? "#ff0000" : "#666666";
         } else {
           mapCtx.fillStyle = "#141727";
-          mapCtx.fillRect(px, py, cell, cell);
+        }
+        mapCtx.fillRect(px, py, cell, cell);
+        if (!state.map.bombs[i]) {
           const n = state.map.numbers[i];
           if (n > 0 && cell >= 4) {
             mapCtx.fillStyle = NUMBER_COLORS[n] || "#ffffff";
@@ -1334,26 +1522,14 @@
   function showStatsOverlay(result, stats) {
     state.phase = "stats";
     statsOverlayEl.classList.remove("hidden");
-    if (result === "win") {
-      statsTitleEl.textContent = "VICTOIRE";
-      statsTitleEl.style.color = "#5cff8d";
-    } else {
-      statsTitleEl.textContent = "DEFAITE";
-      statsTitleEl.style.color = "#ff5c5c";
-    }
+    statsTitleEl.textContent = result === "win" ? "VICTOIRE" : "DEFAITE";
+    statsTitleEl.style.color = result === "win" ? "#5cff8d" : "#ff5c5c";
     statsDurationEl.textContent = `Duree de partie: ${msToClock(stats.durationMs || 0)}`;
     statsTableBodyEl.innerHTML = "";
     for (let i = 0; i < (stats.players || []).length; i++) {
       const p = stats.players[i];
       const row = document.createElement("tr");
-      const pseudoColor = p.color || colorForPseudo(p.pseudo);
-      row.innerHTML = `
-      <td>${i + 1}</td>
-      <td style="font-weight:bold;color:${pseudoColor};">${p.pseudo}</td>
-      <td>${p.cellsRevealed}</td>
-      <td>${p.bombsTriggered}</td>
-      <td>${p.flagsCorrect}/${p.flagsIncorrect}</td>
-    `;
+      row.innerHTML = `<td>${i + 1}</td><td style="font-weight:bold;color:${p.color || colorForPseudo(p.pseudo)};">${p.pseudo}</td><td>${p.cellsRevealed}</td><td>${p.bombsTriggered}</td><td>${p.flagsCorrect}/${p.flagsIncorrect}</td>`;
       statsTableBodyEl.appendChild(row);
     }
     explosionListEl.innerHTML = "";
@@ -1377,406 +1553,166 @@
       statsCountdownEl.textContent = `Nouvelle partie dans: ${state.statsCountdown}s`;
     }, 1e3);
   }
-  function applyPlayerPayload(payload) {
-    const previous = state.players.get(payload.id);
-    let avatar = null;
-    let colorIndex = null;
-    if (payload.avatar !== void 0 && payload.avatar !== null) {
-      avatar = normalizeAvatarIndex(payload.avatar);
-    } else if (previous && Number.isInteger(previous.avatar)) {
-      avatar = previous.avatar;
-    } else if (payload.id === state.myId) {
-      avatar = state.myAvatar;
-    } else {
-      avatar = hashPseudo(payload.pseudo) % assets.sprites.length;
-    }
-    if (payload.colorIndex !== void 0 && payload.colorIndex !== null) {
-      colorIndex = normalizeColorIndex(payload.colorIndex);
-    } else if (previous && Number.isInteger(previous.colorIndex)) {
-      colorIndex = previous.colorIndex;
-    } else if (payload.id === state.myId) {
-      colorIndex = state.myColorIndex;
-    } else {
-      colorIndex = hashPseudo(payload.pseudo) % PLAYER_COLORS.length;
-    }
-    const player = {
-      id: payload.id,
-      pseudo: payload.pseudo,
-      colorIndex,
-      color: payload.color || PLAYER_COLORS[colorIndex] || colorForPseudo(payload.pseudo),
-      avatar,
-      x: payload.x,
-      y: payload.y,
-      isTyping: Boolean(payload.isTyping),
-      stunnedUntil: payload.stunEndTime || 0,
-      dir: previous ? previous.dir : "down",
-      lastMoveAt: previous ? previous.lastMoveAt : 0
-    };
-    if (previous && (previous.x !== player.x || previous.y !== player.y)) {
-      player.dir = spriteDirection(player.x - previous.x, player.y - previous.y, previous.dir);
-      player.lastMoveAt = Date.now();
-    }
-    state.players.set(player.id, player);
-    if (player.id === state.myId) {
-      state.myAvatar = player.avatar;
-      updateAvatarSelectionUI();
-      state.myColorIndex = player.colorIndex;
-      updateColorSelectionUI();
-      state.me.x = player.x;
-      state.me.y = player.y;
-    }
-  }
-  function applySnapshot(payload) {
-    state.phase = payload.phase === "stats" ? "stats" : "playing";
-    state.myId = payload.myId || state.myId;
-    state.explosions = payload.explosions || 0;
-    state.maxExplosions = payload.maxExplosions || 10;
-    state.startTime = payload.startTime || Date.now();
-    state.map.width = payload.map.width;
-    state.map.height = payload.map.height;
-    state.map.totalCells = payload.map.totalCells;
-    state.map.bombCount = payload.map.bombCount;
-    state.map.zoneCenters = payload.map.zoneCenters || [];
-    state.map.bombs = base64ToTypedArray(payload.map.data.bombs, Uint8Array);
-    state.map.numbers = base64ToTypedArray(payload.map.data.numbers, Int8Array);
-    state.map.startZone = base64ToTypedArray(payload.map.data.startZone, Uint8Array);
-    state.map.safeZone = base64ToTypedArray(payload.map.data.safeZone, Uint8Array);
-    state.grid = new Int8Array(TOTAL_CELLS);
-    state.grid.fill(-2);
-    state.flags = /* @__PURE__ */ new Map();
-    state.players = /* @__PURE__ */ new Map();
-    state.revealedSafeCount = 0;
-    state.explodedCells = /* @__PURE__ */ new Set();
-    state.activeExplosions = [];
-    state.activeDigs = /* @__PURE__ */ new Map();
-    for (const cell of payload.revealed || []) {
-      const i = idx(cell.x, cell.y);
-      state.grid[i] = cell.value;
-      if (cell.value >= 0) state.revealedSafeCount += 1;
-      if (cell.value === -1) state.explodedCells.add(i);
-    }
-    for (const flag of payload.flags || []) {
-      state.flags.set(idx(flag.x, flag.y), flag.pseudo);
-    }
-    for (const player of payload.players || []) {
-      applyPlayerPayload(player);
-    }
-    setChatMessages(payload.chatMessages || []);
-    const me = state.players.get(state.myId);
-    if (me) {
-      state.me.x = me.x;
-      state.me.y = me.y;
-    }
-    lobbyEl.classList.add("hidden");
-    joinErrorEl.textContent = "";
-    reconnectEl.classList.add("hidden");
-    hudModule.show();
-    hideStatsOverlay();
-    centerCameraOnMe(true);
-    if (state.chat.open) {
-      setTypingStatus(true);
-    }
-  }
-  function getActionTargetCell() {
-    const me = state.players.get(state.myId);
-    if (!me) return { x: state.me.x, y: state.me.y };
-    return { x: me.x, y: me.y };
-  }
-  function emitCellAction(eventName, target = null) {
+  function emitCellAction(eventName) {
     if (state.phase !== "playing" || state.chat.open) return;
-    const actionTarget = target || getActionTargetCell();
-    if (!actionTarget) return;
-    socket.emit(eventName, actionTarget);
-  }
-  function processInputQueue() {
-    if (state.phase !== "playing") return;
-    if (state.chat.open) return;
-    if (state.moveQueue.length === 0) return;
-    const now = Date.now();
-    if (now - state.lastMoveAt < MOVE_COOLDOWN_MS) return;
-    const action = state.moveQueue.shift();
-    if (!action) return;
-    const nx = state.me.x + action.dx;
-    const ny = state.me.y + action.dy;
-    if (!isInBounds(nx, ny)) return;
-    state.me.x = nx;
-    state.me.y = ny;
     const me = state.players.get(state.myId);
-    if (me) {
-      me.dir = spriteDirection(action.dx, action.dy, me.dir);
-      me.lastMoveAt = now;
-      me.x = nx;
-      me.y = ny;
-    }
-    state.lastMoveAt = now;
-    socket.emit(MINES_EVENTS.move, { x: nx, y: ny });
+    const x = me ? me.x : state.me.x;
+    const y = me ? me.y : state.me.y;
+    game.socket.emit(eventName, { x, y });
   }
-  function enqueueMove(dx, dy) {
-    state.moveQueue.push({ dx, dy });
-  }
-  function registerHoldMove(code, dx, dy) {
-    registerHoldMoveKey({
-      holdControls: state.holdControls,
-      code,
-      dx,
-      dy,
-      enqueueMove,
-      holdDelayMs: HOLD_DELAY_MS,
-      moveCooldownMs: MOVE_COOLDOWN_MS
-    });
-  }
-  function clearHoldMove(code) {
-    clearHoldMoveKey(state.holdControls, code);
-  }
-  function clearAllHoldMoves() {
-    clearAllHoldMoveKeys(state.holdControls);
-  }
-  function updateLocalPlayerFromServerMove(id, x, y) {
-    const player = state.players.get(id);
-    if (!player) return;
-    if (player.x !== x || player.y !== y) {
-      player.dir = spriteDirection(x - player.x, y - player.y, player.dir);
-      player.lastMoveAt = Date.now();
-    }
-    player.x = x;
-    player.y = y;
-    if (id === state.myId) {
-      state.me.x = x;
-      state.me.y = y;
-    }
-  }
-  function startGameLoop() {
-    if (state.loopStarted) return;
-    state.loopStarted = true;
-    function tick() {
-      updateCamera();
-      processInputQueue();
-      renderFrame();
-      updateHud();
-      requestAnimationFrame(tick);
-    }
-    requestAnimationFrame(tick);
-  }
-  function resizeCanvas() {
-    const w = Math.floor(window.innerWidth);
-    const h = Math.floor(window.innerHeight);
-    canvas.width = w;
-    canvas.height = h;
-    canvas.style.width = `${w}px`;
-    canvas.style.height = `${h}px`;
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.imageSmoothingEnabled = false;
-    centerCameraOnMe(true);
-  }
-  joinFormEl.addEventListener("submit", (event) => {
-    event.preventDefault();
-    const pseudo = String(pseudoInputEl.value || "").trim();
-    if (!pseudo) {
-      joinErrorEl.textContent = "Entre un pseudo.";
-      return;
-    }
-    state.myPseudo = pseudo;
-    state.hasJoinedOnce = true;
-    localStorage.setItem("pseudo", pseudo);
-    joinErrorEl.textContent = "";
-    socket.emit(MINES_EVENTS.join, {
-      pseudo,
-      avatar: state.myAvatar,
-      colorIndex: state.myColorIndex,
-      lobbyId: lobbyIdFromQuery
-    });
-  });
-  chatToggleBtnEl?.addEventListener("click", () => {
-    toggleChat();
-  });
-  chatFormEl?.addEventListener("submit", (event) => {
-    event.preventDefault();
-    if (!state.myId) return;
-    const text = String(chatInputEl?.value || "").replace(/\s+/g, " ").trim();
-    if (!text) return;
-    socket.emit(MINES_EVENTS.chatSend, { text });
-    if (chatInputEl) {
-      chatInputEl.value = "";
-      chatInputEl.focus();
-    }
-    if (state.chat.open) {
-      setTypingStatus(true);
-    }
-  });
-  window.addEventListener("resize", resizeCanvas);
-  window.addEventListener("blur", clearAllHoldMoves);
-  canvas.addEventListener("mousedown", (event) => {
-    if (state.chat.open) return;
-    if (event.button === 0) {
-      event.preventDefault();
-      emitCellAction(MINES_EVENTS.reveal);
-      return;
-    }
-    if (event.button === 2) {
-      event.preventDefault();
-      emitCellAction(MINES_EVENTS.flag);
-      return;
-    }
-    if (event.button !== 1) return;
-    state.camera.dragging = true;
-    state.camera.isManual = true;
-    state.camera.dragLastX = event.clientX;
-    state.camera.dragLastY = event.clientY;
-  });
-  canvas.addEventListener("contextmenu", (event) => {
-    event.preventDefault();
-  });
-  window.addEventListener("mouseup", () => {
-    state.camera.dragging = false;
-  });
-  window.addEventListener("mousemove", (event) => {
-    if (!state.camera.dragging) return;
-    const dx = event.clientX - state.camera.dragLastX;
-    const dy = event.clientY - state.camera.dragLastY;
-    state.camera.dragLastX = event.clientX;
-    state.camera.dragLastY = event.clientY;
-    state.camera.x -= dx / state.camera.scale;
-    state.camera.y -= dy / state.camera.scale;
-    clampCamera();
-  });
-  canvas.addEventListener("wheel", (event) => {
-    if (state.chat.open) return;
-    event.preventDefault();
-    const rect = canvas.getBoundingClientRect();
-    const sx = event.clientX - rect.left;
-    const sy = event.clientY - rect.top;
-    const worldX = state.camera.x + sx / state.camera.scale;
-    const worldY = state.camera.y + sy / state.camera.scale;
-    const delta = event.deltaY < 0 ? 1.12 : 0.88;
-    const nextScale = clamp(state.camera.scale * delta, MIN_SCALE, MAX_SCALE);
-    state.camera.scale = nextScale;
-    state.camera.x = worldX - sx / nextScale;
-    state.camera.y = worldY - sy / nextScale;
-    state.camera.isManual = true;
-    clampCamera();
-  }, { passive: false });
-  window.addEventListener("keydown", (event) => {
-    if (event.code === "Tab") {
-      event.preventDefault();
-      toggleChat();
-      return;
-    }
-    if (state.chat.open) {
-      if (event.code === "Escape") {
-        event.preventDefault();
-        setChatOpen(false, false);
-        return;
-      }
-      if (event.code === "Enter" && document.activeElement !== chatInputEl) {
-        event.preventDefault();
-        chatInputEl?.focus();
-      }
-      return;
-    }
-    if (event.code === "Space") {
-      event.preventDefault();
-      if (!event.repeat) emitCellAction(MINES_EVENTS.reveal);
-      return;
-    }
-    if (event.code === "ShiftLeft" || event.code === "ShiftRight") {
-      event.preventDefault();
-      if (!event.repeat) emitCellAction(MINES_EVENTS.flag);
-      return;
-    }
-    const delta = MOVE_KEY_DELTAS[event.code];
-    if (!delta) return;
-    registerHoldMove(event.code, delta[0], delta[1]);
-  });
-  window.addEventListener("keyup", (event) => {
-    clearHoldMove(event.code);
-  });
-  registerCommonSocketLifecycle({
-    socket,
-    events: MINES_EVENTS,
+  var game = createModeBootstrap({
     state,
-    onConnect: () => {
-      state.myId = socket.id;
-      reconnectEl.classList.add("hidden");
-      if (state.hasJoinedOnce && state.myPseudo) {
-        socket.emit(MINES_EVENTS.join, {
-          pseudo: state.myPseudo,
-          avatar: state.myAvatar,
-          colorIndex: state.myColorIndex,
-          lobbyId: lobbyIdFromQuery
-        });
+    events: import_events.MINES_EVENTS,
+    sprites,
+    tileSize: TILE_SIZE,
+    minScale: 0.3,
+    maxScale: 2,
+    animIdleMs: ANIM_IDLE_MS,
+    animalFrame: ANIMAL_FRAME,
+    animalCols: ANIMAL_COLS,
+    hasPositionMove: true,
+    cameraSmoothing: 0.05,
+    cameraSnapThreshold: 5,
+    stateEvents: [import_events.MINES_EVENTS.gameNew],
+    getWorldSize: () => ({ w: GRID_W * TILE_SIZE, h: GRID_H * TILE_SIZE }),
+    getFocusPosition: () => ({ x: state.me.x, y: state.me.y }),
+    onApplyState(payload) {
+      state.phase = payload.phase === "stats" ? "stats" : "playing";
+      state.myId = payload.myId || state.myId;
+      state.explosions = payload.explosions || 0;
+      state.maxExplosions = payload.maxExplosions || 10;
+      state.startTime = payload.startTime || Date.now();
+      state.map.width = payload.map.width;
+      state.map.height = payload.map.height;
+      state.map.totalCells = payload.map.totalCells;
+      state.map.bombCount = payload.map.bombCount;
+      state.map.zoneCenters = payload.map.zoneCenters || [];
+      state.map.bombs = base64ToTypedArray(payload.map.data.bombs, Uint8Array);
+      state.map.numbers = base64ToTypedArray(payload.map.data.numbers, Int8Array);
+      state.map.startZone = base64ToTypedArray(payload.map.data.startZone, Uint8Array);
+      state.map.safeZone = base64ToTypedArray(payload.map.data.safeZone, Uint8Array);
+      state.grid = new Int8Array(TOTAL_CELLS);
+      state.grid.fill(-2);
+      state.flags = /* @__PURE__ */ new Map();
+      state.players = /* @__PURE__ */ new Map();
+      state.revealedSafeCount = 0;
+      state.explodedCells = /* @__PURE__ */ new Set();
+      state.activeExplosions = [];
+      state.activeDigs = /* @__PURE__ */ new Map();
+      for (const c of payload.revealed || []) {
+        const i = idx(c.x, c.y);
+        state.grid[i] = c.value;
+        if (c.value >= 0) state.revealedSafeCount += 1;
+        if (c.value === -1) state.explodedCells.add(i);
       }
-    },
-    onDisconnect: () => {
-      clearAllHoldMoves();
-      if (state.hasJoinedOnce) {
-        reconnectEl.classList.remove("hidden");
+      for (const f of payload.flags || []) state.flags.set(idx(f.x, f.y), f.pseudo);
+      for (const p of payload.players || []) applyPlayerPayload(p);
+      game.chatModule.setMessages(payload.chatMessages || []);
+      const me = state.players.get(state.myId);
+      if (me) {
+        state.me.x = me.x;
+        state.me.y = me.y;
       }
+      game.els.lobby.classList.add("hidden");
+      game.els.joinError.textContent = "";
+      game.els.reconnect.classList.add("hidden");
+      game.hudModule.show();
+      hideStatsOverlay();
+      game.centerCameraOnMe(true);
+      if (state.chat.open) game.chatModule.setTypingStatus(true);
     },
-    onJoinError: (payload = {}) => {
-      state.phase = "lobby";
-      lobbyEl.classList.remove("hidden");
-      joinErrorEl.textContent = payload.message || "Impossible de rejoindre.";
-    },
-    onState: applySnapshot,
-    stateEvents: [MINES_EVENTS.gameNew],
     onPlayerJoined: applyPlayerPayload,
-    onPlayerLeft: (payload) => {
+    onPlayerLeft(payload) {
       state.activeDigs.delete(payload.id);
       state.players.delete(payload.id);
     },
-    onChatMessage: appendChatMessage,
-    onChatTyping: (payload = {}) => {
-      const player = state.players.get(payload.id);
-      if (!player) return;
-      player.isTyping = Boolean(payload.active);
+    onRender(now) {
+      const { ctx, canvas } = game;
+      const scale = state.camera.scale;
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.setTransform(scale, 0, 0, scale, -state.camera.x * scale, -state.camera.y * scale);
+      ctx.fillStyle = "#00d9ff";
+      ctx.fillRect(-200, -200, GRID_W * TILE_SIZE + 400, GRID_H * TILE_SIZE + 400);
+      const viewW = canvas.width / scale, viewH = canvas.height / scale;
+      const minX = clamp(Math.floor(state.camera.x / TILE_SIZE) - 1, 0, GRID_W - 1);
+      const maxX = clamp(Math.ceil((state.camera.x + viewW) / TILE_SIZE) + 1, 0, GRID_W - 1);
+      const minY = clamp(Math.floor(state.camera.y / TILE_SIZE) - 1, 0, GRID_H - 1);
+      const maxY = clamp(Math.ceil((state.camera.y + viewH) / TILE_SIZE) + 1, 0, GRID_H - 1);
+      for (let y = minY; y <= maxY; y++) {
+        for (let x = minX; x <= maxX; x++) drawCell(ctx, x, y);
+      }
+      drawTransitions(ctx, minX, maxX, minY, maxY);
+      drawBombs(ctx, minX, maxX, minY, maxY);
+      drawNumbers(ctx, minX, maxX, minY, maxY);
+      drawFlags(ctx, minX, maxX, minY, maxY);
+      const labels = [];
+      for (const player of state.players.values()) {
+        if (player.x < minX - 1 || player.x > maxX + 1 || player.y < minY - 1 || player.y > maxY + 1) continue;
+        labels.push(drawPlayer(ctx, player, now));
+      }
+      const explosionsByCell = bucketExplosions(now);
+      for (const [key, frames] of explosionsByCell.entries()) {
+        for (const frame of frames) drawExplosionAtCell(ctx, key % GRID_W, Math.floor(key / GRID_W), frame);
+      }
+      drawPlayerLabels(ctx, labels);
+    },
+    onUpdateHud() {
+      const elapsed = state.startTime ? Date.now() - state.startTime : 0;
+      const safeTotal = Math.max(0, state.map.totalCells - state.map.bombCount);
+      game.hudModule.setText(hudBombsEl, `Bombes: ${state.explosions}/${state.maxExplosions}`);
+      hudBombsEl.classList.toggle("bombs-danger", state.explosions >= 7);
+      game.hudModule.setText(hudTimeEl, msToClock(elapsed));
+      game.hudModule.setText(hudPlayersEl, `${state.players.size} joueurs`);
+      game.hudModule.setText(hudFlagsEl, `Drapeaux: ${state.flags.size}`);
+      game.hudModule.setText(hudRevealedEl, `Cases revelees: ${state.revealedSafeCount}/${safeTotal}`);
+      game.els.hud.classList.toggle("near-top", state.me.y <= 3);
+    },
+    onKeydown(event) {
+      if (event.code === "Space") {
+        event.preventDefault();
+        if (!event.repeat) emitCellAction(import_events.MINES_EVENTS.reveal);
+        return true;
+      }
+      if (event.code === "ShiftLeft" || event.code === "ShiftRight") {
+        event.preventDefault();
+        if (!event.repeat) emitCellAction(import_events.MINES_EVENTS.flag);
+        return true;
+      }
+      return false;
+    },
+    onMousedown(event) {
+      if (event.button === 0) {
+        event.preventDefault();
+        emitCellAction(import_events.MINES_EVENTS.reveal);
+      }
+      if (event.button === 2) {
+        event.preventDefault();
+        emitCellAction(import_events.MINES_EVENTS.flag);
+      }
+    },
+    extraSocketSetup(socket) {
+      socket.on(import_events.MINES_EVENTS.cellsRevealed, (payload) => {
+        const pid = payload?.playerId;
+        const player = pid ? state.players.get(pid) : null;
+        if (pid && player && playerHasDigAnim(player)) state.activeDigs.set(pid, Date.now());
+        applyRevealedCells(payload.cells || []);
+      });
+      socket.on(import_events.MINES_EVENTS.cellFlagged, (payload) => {
+        const i = idx(payload.x, payload.y);
+        if (payload.active) state.flags.set(i, payload.pseudo);
+        else state.flags.delete(i);
+      });
+      socket.on(import_events.MINES_EVENTS.bombExploded, (payload) => {
+        state.explosions = payload.count;
+        state.explodedCells.add(idx(payload.x, payload.y));
+        state.activeExplosions.push({ x: payload.x, y: payload.y, startedAt: Date.now() });
+        const player = state.players.get(payload.id);
+        if (player) player.stunnedUntil = payload.stunEndTime || Date.now() + 2e3;
+      });
+      socket.on(import_events.MINES_EVENTS.gameOver, (payload) => {
+        showStatsOverlay(payload.result, payload.stats || {});
+      });
     }
   });
-  socket.on(MINES_EVENTS.playerMoved, (payload) => {
-    updateLocalPlayerFromServerMove(payload.id, payload.x, payload.y);
-  });
-  socket.on(MINES_EVENTS.cellsRevealed, (payload) => {
-    const playerId = payload?.playerId;
-    const player = playerId ? state.players.get(playerId) : null;
-    const hasDigAnimation = Boolean(player && playerHasLoadedDigAnimation(player));
-    if (playerId && hasDigAnimation) {
-      state.activeDigs.set(playerId, Date.now());
-    }
-    applyRevealedCells(payload.cells || []);
-  });
-  socket.on(MINES_EVENTS.cellFlagged, (payload) => {
-    const i = idx(payload.x, payload.y);
-    if (payload.active) {
-      state.flags.set(i, payload.pseudo);
-    } else {
-      state.flags.delete(i);
-    }
-  });
-  socket.on(MINES_EVENTS.bombExploded, (payload) => {
-    state.explosions = payload.count;
-    state.explodedCells.add(idx(payload.x, payload.y));
-    state.activeExplosions.push({ x: payload.x, y: payload.y, startedAt: Date.now() });
-    const player = state.players.get(payload.id);
-    if (player) player.stunnedUntil = payload.stunEndTime || Date.now() + 2e3;
-  });
-  socket.on(MINES_EVENTS.gameOver, (payload) => {
-    showStatsOverlay(payload.result, payload.stats || {});
-  });
-  var rememberedPseudo = localStorage.getItem("pseudo");
-  if (rememberedPseudo) {
-    pseudoInputEl.value = rememberedPseudo;
-  }
-  setupAvatarPicker();
-  setupColorPicker();
-  var rememberedAvatar = localStorage.getItem("avatar");
-  if (rememberedAvatar !== null) {
-    setMyAvatar(rememberedAvatar, false);
-  }
-  var rememberedColorIndex = localStorage.getItem("colorIndex");
-  if (rememberedColorIndex !== null) {
-    setMyColorIndex(rememberedColorIndex, false);
-  }
-  setChatMessages([]);
-  setChatOpen(false, false);
-  resizeCanvas();
-  startGameLoop();
 })();
