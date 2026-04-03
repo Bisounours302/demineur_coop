@@ -6,7 +6,7 @@ const TOTAL_CELLS = GRID_W * GRID_H;
 const MAX_PLAYERS = 30;
 const TICK_MS = 180;
 const START_LENGTH = 4;
-const APPLE_COUNT = 1;
+const APPLE_COUNT = 10;
 
 const DIRECTIONS = ['up', 'down', 'left', 'right'];
 const DIRECTION_VECTORS = {
@@ -34,6 +34,9 @@ function createSnakeSession(options = {}) {
   const onPlayerDied = typeof options.onPlayerDied === 'function'
     ? options.onPlayerDied
     : () => {};
+  const onPlayerRemoved = typeof options.onPlayerRemoved === 'function'
+    ? options.onPlayerRemoved
+    : () => {};
 
   const core = createSessionCore({
     maxPlayers: MAX_PLAYERS,
@@ -50,15 +53,11 @@ function createSnakeSession(options = {}) {
         pendingDirection: direction,
         segments,
         score: 0,
-        deaths: 0,
-        alive: true,
       };
     },
     toPublicPlayer: (player) => ({
       direction: player.direction,
-      alive: Boolean(player.alive),
       score: Math.max(0, Number(player.score) || 0),
-      deaths: Math.max(0, Number(player.deaths) || 0),
       segments: Array.isArray(player.segments)
         ? player.segments.map((segment) => ({ x: segment.x, y: segment.y }))
         : [],
@@ -217,8 +216,7 @@ function createSnakeSession(options = {}) {
       });
     }
 
-    const eatenAppleKeys = new Set();
-    const eaterCountById = new Map();
+    const appleEaterByKey = new Map();
     const applesByKey = new Set(state.apples.map((apple) => cellKey(apple.x, apple.y)));
     for (const player of players) {
       const next = nextById.get(player.id);
@@ -226,9 +224,15 @@ function createSnakeSession(options = {}) {
 
       const nextKey = cellKey(next.head.x, next.head.y);
       if (!applesByKey.has(nextKey)) continue;
+      if (!appleEaterByKey.has(nextKey)) {
+        appleEaterByKey.set(nextKey, player.id);
+      }
+    }
 
-      eatenAppleKeys.add(nextKey);
-      eaterCountById.set(player.id, (eaterCountById.get(player.id) || 0) + 1);
+    const eatenAppleKeys = new Set(appleEaterByKey.keys());
+    const eaterCountById = new Map();
+    for (const eaterId of appleEaterByKey.values()) {
+      eaterCountById.set(eaterId, (eaterCountById.get(eaterId) || 0) + 1);
     }
 
     const tailBlocked = new Set();
@@ -293,7 +297,13 @@ function createSnakeSession(options = {}) {
         pseudo: deadPlayer.pseudo,
       });
 
-      core.removePlayer(deadId);
+      const removed = core.removePlayer(deadId);
+      if (removed) {
+        onPlayerRemoved(deadId, {
+          pseudo: deadPlayer.pseudo,
+          score: previousScore,
+        });
+      }
     }
 
     ensureAppleCount();

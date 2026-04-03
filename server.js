@@ -105,9 +105,20 @@ const MODE_RUNTIME = {
     defaultLobbyId: 'snake-global',
     lobbies: new Map(),
     hasPositionMove: false,
-    createSession: () => createSnakeSession({
+    createSession: (lobbyId) => createSnakeSession({
       onPlayerDied: (socketId, payload) => {
         io.to(socketId).emit(SNAKE_ACTION_EVENTS.deathOut, payload || {});
+      },
+      onPlayerRemoved: (socketId) => {
+        const deadSocket = io.sockets.sockets.get(socketId);
+        if (deadSocket) {
+          deadSocket.leave(lobbyId);
+          deadSocket.data.mode = null;
+          deadSocket.data.lobbyId = null;
+        }
+
+        io.to(lobbyId).emit(MODE_EVENTS.snake.playerLeft, { id: socketId });
+        tryRemoveLobby('snake', lobbyId);
       },
     }),
     onEmptyLobby: (lobby) => {

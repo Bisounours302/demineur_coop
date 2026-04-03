@@ -130,7 +130,7 @@ newMode: {
 - Ecran de stats 60 secondes puis nouvelle partie automatique
 - Mode paint: sauvegarde auto toutes les 5 minutes uniquement si la carte a change
 - Sauvegardes paint: `data/paint/<lobbyId>.json` (restaurees automatiquement au demarrage)
-- Mode snake: deplacement automatique, changement de direction aux fleches, collision queue = mort + respawn
+- Mode snake: deplacement automatique, changement de direction aux fleches, collision queue = mort + retour lobby
 
 ## Securite reseau
 

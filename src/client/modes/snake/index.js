@@ -307,8 +307,6 @@ function applyPlayerPayload(payload) {
     y: Number(payload.y) || 0,
     direction: String(payload.direction || 'right'),
     score: Math.max(0, Number(payload.score) || 0),
-    deaths: Math.max(0, Number(payload.deaths) || 0),
-    alive: payload.alive !== false,
     isTyping: Boolean(payload.isTyping),
     segments: Array.isArray(payload.segments)
       ? payload.segments.map((segment) => ({ x: Number(segment.x) || 0, y: Number(segment.y) || 0 }))
@@ -387,7 +385,7 @@ function updateLeaderboard() {
   const rows = Array.from(state.players.values())
     .sort((a, b) => {
       if (b.score !== a.score) return b.score - a.score;
-      return a.deaths - b.deaths;
+      return a.pseudo.localeCompare(b.pseudo, 'fr');
     });
 
   leaderboardListEl.innerHTML = '';
