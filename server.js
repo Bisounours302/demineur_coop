@@ -60,6 +60,10 @@ app.get('/snake', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'snake.html'));
 });
 
+app.get(['/skeleton', '/skeleton/', '/skeleton.html', '/skeleton-client.js'], (req, res) => {
+  res.status(404).send('Not found');
+});
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 function normalizeLobbyId(value, fallbackLobbyId) {

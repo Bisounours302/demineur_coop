@@ -593,6 +593,9 @@ const game = createModeBootstrap({
     state.activeDigs.delete(payload.id);
     state.players.delete(payload.id);
   },
+  onJoinError() {
+    hideStatsOverlay();
+  },
 
   onRender(now) {
     const { ctx, canvas } = game;

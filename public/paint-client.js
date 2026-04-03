@@ -630,6 +630,7 @@
       onMousedown,
       onWindowBlur,
       onJoinPayload,
+      onJoinError: onModeJoinError,
       onInit,
       extraSocketSetup
     } = config;
@@ -953,8 +954,17 @@
       },
       onJoinError: (payload = {}) => {
         state2.phase = "lobby";
+        clearAllHoldMoves();
+        if (hasPositionMove) state2.moveQueue = [];
+        state2.camera.dragging = false;
+        chatModule.setOpen(false, false);
+        hudModule.hide();
+        els.reconnect.classList.add("hidden");
         els.lobby.classList.remove("hidden");
         els.joinError.textContent = payload.message || "Impossible de rejoindre.";
+        if (typeof onModeJoinError === "function") {
+          onModeJoinError(payload);
+        }
       },
       onState: (payload) => {
         if (typeof onApplyState === "function") onApplyState(payload);
@@ -1117,6 +1127,9 @@
   var paintPaletteGridEl = document.getElementById("paintPaletteGrid");
   var selectedColorLabelEl = document.getElementById("selectedColorLabel");
   var downloadPngBtnEl = document.getElementById("downloadPngBtn");
+  var hudPlayersEl = document.getElementById("hudPlayers");
+  var hudTimeEl = document.getElementById("hudTime");
+  var hudColorEl = document.getElementById("hudColor");
   function idx(x, y) {
     return y * state.map.width + x;
   }
@@ -1298,6 +1311,9 @@
     onPlayerLeft: (payload) => {
       state.players.delete(payload.id);
     },
+    onJoinError() {
+      paletteDockEl?.classList.add("hidden");
+    },
     onRender(now) {
       const { ctx, canvas } = game;
       const scale = state.camera.scale;
@@ -1342,9 +1358,9 @@
     onUpdateHud() {
       const elapsed = state.startTime ? Date.now() - state.startTime : 0;
       const selectedColor = state.map.palette[state.selectedPaletteIndex] || "#000000";
-      game.hudModule.setText(document.getElementById("hudPlayers"), `${state.players.size} joueurs`);
-      game.hudModule.setText(document.getElementById("hudTime"), msToClock(elapsed));
-      game.hudModule.setText(document.getElementById("hudColor"), `Couleur: ${selectedColor}`);
+      game.hudModule.setText(hudPlayersEl, `${state.players.size} joueurs`);
+      game.hudModule.setText(hudTimeEl, msToClock(elapsed));
+      game.hudModule.setText(hudColorEl, `Couleur: ${selectedColor}`);
     },
     onKeydown(event) {
       if (event.code === "Space") {

@@ -211,6 +211,9 @@ const game = createModeBootstrap({
 
   onPlayerJoined: applyPlayerPayload,
   onPlayerLeft: (payload) => { state.players.delete(payload.id); },
+  onJoinError() {
+    leaderboardDockEl.classList.add('hidden');
+  },
 
   onRender(now) {
     const { ctx, canvas } = game;

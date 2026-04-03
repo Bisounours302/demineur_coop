@@ -63,6 +63,7 @@ export function createModeBootstrap(config) {
     onMousedown,
     onWindowBlur,
     onJoinPayload,
+    onJoinError: onModeJoinError,
     onInit,
     extraSocketSetup,
   } = config;
@@ -422,8 +423,17 @@ export function createModeBootstrap(config) {
     },
     onJoinError: (payload = {}) => {
       state.phase = 'lobby';
+      clearAllHoldMoves();
+      if (hasPositionMove) state.moveQueue = [];
+      state.camera.dragging = false;
+      chatModule.setOpen(false, false);
+      hudModule.hide();
+      els.reconnect.classList.add('hidden');
       els.lobby.classList.remove('hidden');
       els.joinError.textContent = payload.message || 'Impossible de rejoindre.';
+      if (typeof onModeJoinError === 'function') {
+        onModeJoinError(payload);
+      }
     },
     onState: (payload) => {
       if (typeof onApplyState === 'function') onApplyState(payload);

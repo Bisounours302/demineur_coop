@@ -630,6 +630,7 @@
       onMousedown,
       onWindowBlur,
       onJoinPayload,
+      onJoinError: onModeJoinError,
       onInit,
       extraSocketSetup
     } = config;
@@ -953,8 +954,17 @@
       },
       onJoinError: (payload = {}) => {
         state2.phase = "lobby";
+        clearAllHoldMoves();
+        if (hasPositionMove) state2.moveQueue = [];
+        state2.camera.dragging = false;
+        chatModule.setOpen(false, false);
+        hudModule.hide();
+        els.reconnect.classList.add("hidden");
         els.lobby.classList.remove("hidden");
         els.joinError.textContent = payload.message || "Impossible de rejoindre.";
+        if (typeof onModeJoinError === "function") {
+          onModeJoinError(payload);
+        }
       },
       onState: (payload) => {
         if (typeof onApplyState === "function") onApplyState(payload);
@@ -1625,6 +1635,9 @@
     onPlayerLeft(payload) {
       state.activeDigs.delete(payload.id);
       state.players.delete(payload.id);
+    },
+    onJoinError() {
+      hideStatsOverlay();
     },
     onRender(now) {
       const { ctx, canvas } = game;

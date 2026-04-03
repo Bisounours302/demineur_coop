@@ -56,6 +56,9 @@ const paletteDockEl = document.getElementById('paintPaletteDock');
 const paintPaletteGridEl = document.getElementById('paintPaletteGrid');
 const selectedColorLabelEl = document.getElementById('selectedColorLabel');
 const downloadPngBtnEl = document.getElementById('downloadPngBtn');
+const hudPlayersEl = document.getElementById('hudPlayers');
+const hudTimeEl = document.getElementById('hudTime');
+const hudColorEl = document.getElementById('hudColor');
 
 // ----------------------------------------------------------------- helpers
 function idx(x, y) { return y * state.map.width + x; }
@@ -279,6 +282,9 @@ const game = createModeBootstrap({
 
   onPlayerJoined: applyPlayerPayload,
   onPlayerLeft: (payload) => { state.players.delete(payload.id); },
+  onJoinError() {
+    paletteDockEl?.classList.add('hidden');
+  },
 
   onRender(now) {
     const { ctx, canvas } = game;
@@ -336,9 +342,9 @@ const game = createModeBootstrap({
   onUpdateHud() {
     const elapsed = state.startTime ? Date.now() - state.startTime : 0;
     const selectedColor = state.map.palette[state.selectedPaletteIndex] || '#000000';
-    game.hudModule.setText(document.getElementById('hudPlayers'), `${state.players.size} joueurs`);
-    game.hudModule.setText(document.getElementById('hudTime'), msToClock(elapsed));
-    game.hudModule.setText(document.getElementById('hudColor'), `Couleur: ${selectedColor}`);
+    game.hudModule.setText(hudPlayersEl, `${state.players.size} joueurs`);
+    game.hudModule.setText(hudTimeEl, msToClock(elapsed));
+    game.hudModule.setText(hudColorEl, `Couleur: ${selectedColor}`);
   },
 
   onKeydown(event) {

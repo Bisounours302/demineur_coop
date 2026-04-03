@@ -13,10 +13,6 @@ const targets = [
     outfile: path.join(ROOT, 'public', 'paint-client.js'),
   },
   {
-    entry: path.join(ROOT, 'src', 'client', 'modes', 'skeleton', 'index.js'),
-    outfile: path.join(ROOT, 'public', 'skeleton-client.js'),
-  },
-  {
     entry: path.join(ROOT, 'src', 'client', 'modes', 'snake', 'index.js'),
     outfile: path.join(ROOT, 'public', 'snake-client.js'),
   },
