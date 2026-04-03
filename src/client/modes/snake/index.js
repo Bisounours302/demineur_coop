@@ -10,6 +10,16 @@ import {
   normalizeColorIndex,
 } from '../../core/shared.js';
 import { SNAKE_EVENTS } from '../../core/events.js';
+import { createChatModule } from '../../modules/chat/createChatModule.js';
+import { createIdentityModule } from '../../modules/lobby/createIdentityModule.js';
+import { createHudModule } from '../../modules/hud/createHudModule.js';
+import { drawCheckerTiles } from '../../modules/tiles/drawCheckerTiles.js';
+import { drawAvatarFrame } from '../../modules/characters/drawAvatarFrame.js';
+import { registerCommonSocketLifecycle } from '../../modules/network/registerCommonSocketLifecycle.js';
+import {
+  clampCameraToWorld,
+  centerCameraOnFocus,
+} from '../../modules/camera/followCamera.js';
 
 const TILE_SIZE = 18;
 const MIN_SCALE = 0.25;
@@ -120,176 +130,87 @@ function setPreviousScore(score) {
   previousScoreEl.classList.remove('hidden');
 }
 
-function normalizeChatEntry(entry) {
-  return {
-    id: String(entry?.id || `${Date.now()}-${Math.floor(Math.random() * 1e6)}`),
-    pseudo: String(entry?.pseudo || 'System'),
-    color: String(entry?.color || colorForPseudo(entry?.pseudo || 'System')),
-    text: String(entry?.text || '').trim(),
-    at: Number(entry?.at || Date.now()),
-  };
-}
+const identityModule = createIdentityModule({
+  state,
+  avatarOptionEls,
+  colorPickerEl,
+  normalizeAvatarIndex,
+  normalizeColorIndex,
+  playerColors: PLAYER_COLORS,
+  avatarStorageKey: 'avatar',
+  colorStorageKey: 'colorIndex',
+});
+
+const chatModule = createChatModule({
+  state,
+  chatDockEl,
+  chatFormEl,
+  chatMessagesEl,
+  chatInputEl,
+  resolveColorForPseudo: colorForPseudo,
+  emitTyping: (active) => {
+    socket.emit(SNAKE_EVENTS.chatTyping, { active });
+  },
+  maxMessages: CHAT_MAX_MESSAGES,
+  closedVisibleMessages: CHAT_CLOSED_VISIBLE_MESSAGES,
+  getMyId: () => state.myId,
+});
+
+const hudModule = createHudModule({ rootEl: hudEl });
 
 function setChatMessages(messages) {
-  state.chat.messages = (messages || [])
-    .map(normalizeChatEntry)
-    .filter((m) => m.text.length > 0)
-    .slice(-CHAT_MAX_MESSAGES);
-  renderChatMessages();
+  chatModule.setMessages(messages);
 }
 
 function appendChatMessage(entry) {
-  const normalized = normalizeChatEntry(entry);
-  if (!normalized.text) return;
-
-  state.chat.messages.push(normalized);
-  if (state.chat.messages.length > CHAT_MAX_MESSAGES) {
-    state.chat.messages = state.chat.messages.slice(-CHAT_MAX_MESSAGES);
-  }
-  renderChatMessages();
-}
-
-function renderChatMessages() {
-  if (!chatMessagesEl) return;
-
-  const messagesToRender = state.chat.open
-    ? state.chat.messages
-    : state.chat.messages.slice(-CHAT_CLOSED_VISIBLE_MESSAGES);
-
-  chatMessagesEl.innerHTML = '';
-  for (const entry of messagesToRender) {
-    const li = document.createElement('li');
-    li.className = 'chat-item';
-    li.innerHTML = `<strong style="color:${entry.color};">${entry.pseudo}</strong>: ${entry.text}`;
-    chatMessagesEl.appendChild(li);
-  }
-
-  if (state.chat.open) {
-    chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
-  }
+  chatModule.appendMessage(entry);
 }
 
 function setTypingStatus(active) {
-  if (!state.myId || state.chat.typingSent === active) return;
-
-  state.chat.typingSent = active;
-  socket.emit(SNAKE_EVENTS.chatTyping, { active });
+  chatModule.setTypingStatus(active);
 }
 
 function setChatOpen(open, focusInput = true) {
-  const next = Boolean(open);
-  if (state.chat.open === next) return;
-
-  state.chat.open = next;
-  chatDockEl.classList.toggle('open', next);
-  chatFormEl.classList.toggle('hidden', !next);
-  renderChatMessages();
-
-  if (next) {
-    setTypingStatus(true);
-    if (focusInput) chatInputEl?.focus();
-  } else {
-    setTypingStatus(false);
-    chatInputEl?.blur();
-  }
+  chatModule.setOpen(open, focusInput);
 }
 
 function toggleChat() {
-  setChatOpen(!state.chat.open);
+  chatModule.toggleOpen();
 }
 
 function updateAvatarSelectionUI() {
-  for (const option of avatarOptionEls) {
-    const avatar = normalizeAvatarIndex(option.dataset.avatar);
-    const selected = avatar === state.myAvatar;
-    option.classList.toggle('selected', selected);
-    option.setAttribute('aria-checked', selected ? 'true' : 'false');
-  }
+  identityModule.updateAvatarSelectionUI();
 }
 
 function setMyAvatar(value, persist = true) {
-  state.myAvatar = normalizeAvatarIndex(value);
-  updateAvatarSelectionUI();
-  if (persist) localStorage.setItem('avatar', String(state.myAvatar));
+  identityModule.setMyAvatar(value, persist);
 }
 
 function updateColorSelectionUI() {
-  if (!colorPickerEl) return;
-  const options = Array.from(colorPickerEl.querySelectorAll('.color-option'));
-  for (const option of options) {
-    const idxValue = normalizeColorIndex(option.dataset.colorIndex);
-    const selected = idxValue === state.myColorIndex;
-    option.classList.toggle('selected', selected);
-    option.setAttribute('aria-checked', selected ? 'true' : 'false');
-  }
+  identityModule.updateColorSelectionUI();
 }
 
 function setMyColorIndex(value, persist = true) {
-  state.myColorIndex = normalizeColorIndex(value);
-  updateColorSelectionUI();
-  if (persist) localStorage.setItem('colorIndex', String(state.myColorIndex));
+  identityModule.setMyColorIndex(value, persist);
 }
 
 function setupColorPicker() {
-  if (!colorPickerEl) return;
-  colorPickerEl.innerHTML = '';
-
-  for (let i = 0; i < PLAYER_COLORS.length; i++) {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'color-option';
-    btn.dataset.colorIndex = String(i);
-    btn.setAttribute('role', 'radio');
-    btn.setAttribute('aria-checked', 'false');
-    btn.title = `Couleur ${i + 1}`;
-    btn.style.setProperty('--swatch-color', PLAYER_COLORS[i]);
-    btn.addEventListener('click', () => setMyColorIndex(i));
-    colorPickerEl.appendChild(btn);
-  }
-
-  updateColorSelectionUI();
+  identityModule.setupColorPicker();
 }
 
 function setupAvatarPicker() {
-  if (!avatarPickerEl) return;
-
-  for (const option of avatarOptionEls) {
-    option.addEventListener('click', () => setMyAvatar(option.dataset.avatar));
-  }
-
-  updateAvatarSelectionUI();
+  identityModule.setupAvatarPicker();
 }
 
 function drawAvatarPickerPreview(now) {
-  if (!avatarPickerEl) return;
   if (lobbyEl.classList.contains('hidden')) return;
-
-  const idleCol = Math.floor(now / ANIM_IDLE_MS) % ANIMAL_COLS;
-  for (const option of avatarOptionEls) {
-    const canvasEl = option.querySelector('.avatar-preview');
-    if (!canvasEl) continue;
-
-    const avatar = normalizeAvatarIndex(option.dataset.avatar);
-    const image = assets.sprites[avatar];
-    const pctx = canvasEl.getContext('2d');
-
-    pctx.clearRect(0, 0, canvasEl.width, canvasEl.height);
-    pctx.imageSmoothingEnabled = false;
-
-    if (image && image.loaded) {
-      pctx.drawImage(
-        image,
-        idleCol * ANIMAL_FRAME,
-        0,
-        ANIMAL_FRAME,
-        ANIMAL_FRAME,
-        0,
-        0,
-        canvasEl.width,
-        canvasEl.height,
-      );
-    }
-  }
+  identityModule.drawAvatarPickerPreview({
+    now,
+    sprites: assets.sprites,
+    animIdleMs: ANIM_IDLE_MS,
+    frameSize: ANIMAL_FRAME,
+    frameCols: ANIMAL_COLS,
+  });
 }
 
 function colorForPlayer(player) {
@@ -348,7 +269,7 @@ function applySnapshot(payload) {
   lobbyEl.classList.add('hidden');
   reconnectEl.classList.add('hidden');
   joinErrorEl.textContent = '';
-  hudEl.classList.remove('hidden');
+  hudModule.show();
   leaderboardDockEl.classList.remove('hidden');
 
   centerCameraOnMe(true);
@@ -374,9 +295,9 @@ function updateHud() {
   const elapsed = state.startTime ? Date.now() - state.startTime : 0;
   const me = state.players.get(state.myId);
 
-  hudPlayersEl.textContent = `${state.players.size} joueurs`;
-  hudScoreEl.textContent = `Score: ${Math.max(0, Number(me?.score) || 0)}`;
-  hudTimeEl.textContent = msToClock(elapsed);
+  hudModule.setText(hudPlayersEl, `${state.players.size} joueurs`);
+  hudModule.setText(hudScoreEl, `Score: ${Math.max(0, Number(me?.score) || 0)}`);
+  hudModule.setText(hudTimeEl, msToClock(elapsed));
 }
 
 function updateLeaderboard() {
@@ -413,16 +334,17 @@ function updateLeaderboard() {
 }
 
 function drawBoard(minX, maxX, minY, maxY) {
-  for (let y = minY; y <= maxY; y++) {
-    for (let x = minX; x <= maxX; x++) {
-      const px = x * TILE_SIZE;
-      const py = y * TILE_SIZE;
-      ctx.fillStyle = (x + y) % 2 === 0 ? '#0f271c' : '#143023';
-      ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
-      ctx.strokeStyle = 'rgba(255,255,255,0.04)';
-      ctx.strokeRect(px + 0.5, py + 0.5, TILE_SIZE - 1, TILE_SIZE - 1);
-    }
-  }
+  drawCheckerTiles({
+    ctx,
+    minX,
+    maxX,
+    minY,
+    maxY,
+    tileSize: TILE_SIZE,
+    primaryColor: '#0f271c',
+    secondaryColor: '#143023',
+    strokeStyle: 'rgba(255,255,255,0.04)',
+  });
 }
 
 function drawApples() {
@@ -463,19 +385,17 @@ function drawSnake(player, now) {
   const headRow = rowByDirection[player.direction] ?? 0;
   const headCol = Math.floor(now / ANIM_IDLE_MS) % ANIMAL_COLS;
 
-  if (headSheet && headSheet.loaded) {
-    ctx.drawImage(
-      headSheet,
-      headCol * ANIMAL_FRAME,
-      headRow * ANIMAL_FRAME,
-      ANIMAL_FRAME,
-      ANIMAL_FRAME,
-      headPx,
-      headPy,
-      TILE_SIZE,
-      TILE_SIZE,
-    );
-  } else {
+  if (!drawAvatarFrame({
+    ctx,
+    image: headSheet,
+    frameCol: headCol,
+    frameRow: headRow,
+    frameSize: ANIMAL_FRAME,
+    dx: headPx,
+    dy: headPy,
+    dw: TILE_SIZE,
+    dh: TILE_SIZE,
+  })) {
     ctx.fillStyle = '#f9f9f9';
     ctx.fillRect(headPx + 1, headPy + 1, TILE_SIZE - 2, TILE_SIZE - 2);
 
@@ -555,31 +475,26 @@ function getMyHead() {
 
 function centerCameraOnMe(immediate = false) {
   const meHead = getMyHead();
-  const viewW = canvas.width / state.camera.scale;
-  const viewH = canvas.height / state.camera.scale;
-
-  const targetX = meHead.x * TILE_SIZE + TILE_SIZE * 0.5 - viewW * 0.5;
-  const targetY = meHead.y * TILE_SIZE + TILE_SIZE * 0.5 - viewH * 0.5;
-
-  if (immediate) {
-    state.camera.x = targetX;
-    state.camera.y = targetY;
-  } else {
-    state.camera.x += (targetX - state.camera.x) * 0.08;
-    state.camera.y += (targetY - state.camera.y) * 0.08;
-  }
+  centerCameraOnFocus({
+    camera: state.camera,
+    canvas,
+    tileSize: TILE_SIZE,
+    focusX: meHead.x,
+    focusY: meHead.y,
+    immediate,
+    smoothing: 0.08,
+  });
 
   clampCamera();
 }
 
 function clampCamera() {
-  const worldW = state.map.width * TILE_SIZE;
-  const worldH = state.map.height * TILE_SIZE;
-  const viewW = canvas.width / state.camera.scale;
-  const viewH = canvas.height / state.camera.scale;
-
-  state.camera.x = clamp(state.camera.x, 0, Math.max(0, worldW - viewW));
-  state.camera.y = clamp(state.camera.y, 0, Math.max(0, worldH - viewH));
+  clampCameraToWorld({
+    camera: state.camera,
+    canvas,
+    worldW: state.map.width * TILE_SIZE,
+    worldH: state.map.height * TILE_SIZE,
+  });
 }
 
 function updateCamera() {
@@ -740,52 +655,46 @@ window.addEventListener('keydown', (event) => {
   emitTurn(direction);
 });
 
-socket.on('connect', () => {
-  state.myId = socket.id;
-  state.chat.typingSent = false;
-  reconnectEl.classList.add('hidden');
+registerCommonSocketLifecycle({
+  socket,
+  events: SNAKE_EVENTS,
+  state,
+  onConnect: () => {
+    state.myId = socket.id;
+    reconnectEl.classList.add('hidden');
 
-  if (state.hasJoinedOnce && state.myPseudo && state.phase === 'playing') {
-    socket.emit(SNAKE_EVENTS.join, {
-      pseudo: state.myPseudo,
-      avatar: state.myAvatar,
-      colorIndex: state.myColorIndex,
-      lobbyId: lobbyIdFromQuery,
-    });
-  }
-});
-
-socket.on('disconnect', () => {
-  state.chat.typingSent = false;
-  if (state.hasJoinedOnce) {
-    reconnectEl.classList.remove('hidden');
-  }
-});
-
-socket.on(SNAKE_EVENTS.joinError, (payload = {}) => {
-  state.phase = 'lobby';
-  lobbyEl.classList.remove('hidden');
-  hudEl.classList.add('hidden');
-  leaderboardDockEl.classList.add('hidden');
-  joinErrorEl.textContent = payload.message || 'Impossible de rejoindre.';
-});
-
-socket.on(SNAKE_EVENTS.state, applySnapshot);
-
-socket.on(SNAKE_EVENTS.playerJoined, (payload) => {
-  applyPlayerPayload(payload);
-});
-
-socket.on(SNAKE_EVENTS.playerLeft, (payload) => {
-  state.players.delete(payload.id);
-});
-
-socket.on(SNAKE_EVENTS.chatMessage, (payload) => appendChatMessage(payload));
-
-socket.on(SNAKE_EVENTS.chatTyping, (payload = {}) => {
-  const player = state.players.get(payload.id);
-  if (!player) return;
-  player.isTyping = Boolean(payload.active);
+    if (state.hasJoinedOnce && state.myPseudo && state.phase === 'playing') {
+      socket.emit(SNAKE_EVENTS.join, {
+        pseudo: state.myPseudo,
+        avatar: state.myAvatar,
+        colorIndex: state.myColorIndex,
+        lobbyId: lobbyIdFromQuery,
+      });
+    }
+  },
+  onDisconnect: () => {
+    if (state.hasJoinedOnce) {
+      reconnectEl.classList.remove('hidden');
+    }
+  },
+  onJoinError: (payload = {}) => {
+    state.phase = 'lobby';
+    lobbyEl.classList.remove('hidden');
+    hudModule.hide();
+    leaderboardDockEl.classList.add('hidden');
+    joinErrorEl.textContent = payload.message || 'Impossible de rejoindre.';
+  },
+  onState: applySnapshot,
+  onPlayerJoined: applyPlayerPayload,
+  onPlayerLeft: (payload) => {
+    state.players.delete(payload.id);
+  },
+  onChatMessage: appendChatMessage,
+  onChatTyping: (payload = {}) => {
+    const player = state.players.get(payload.id);
+    if (!player) return;
+    player.isTyping = Boolean(payload.active);
+  },
 });
 
 socket.on(SNAKE_EVENTS.tick, applyTick);
@@ -800,7 +709,7 @@ socket.on(SNAKE_EVENTS.playerDied, (payload = {}) => {
   setChatOpen(false, false);
   lobbyEl.classList.remove('hidden');
   reconnectEl.classList.add('hidden');
-  hudEl.classList.add('hidden');
+  hudModule.hide();
   leaderboardDockEl.classList.add('hidden');
   joinErrorEl.textContent = '';
 

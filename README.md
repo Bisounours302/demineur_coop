@@ -66,6 +66,14 @@ Client modulaire + build:
 
 - `src/client/core/shared.js`: utilitaires front communs (couleurs, avatars, conversion, clavier)
 - `src/client/core/events.js`: noms d evenements Socket.io partages
+- `src/client/modules/chat/createChatModule.js`: module chat reutilisable (messages, typing, ouverture/fermeture)
+- `src/client/modules/lobby/createIdentityModule.js`: module lobby reutilisable (avatar, couleur, previews)
+- `src/client/modules/hud/createHudModule.js`: helpers header/HUD reutilisables
+- `src/client/modules/tiles/drawCheckerTiles.js`: rendu de grille/tuiles damier reutilisable
+- `src/client/modules/characters/drawAvatarFrame.js`: rendu sprite personnage reutilisable
+- `src/client/modules/network/registerCommonSocketLifecycle.js`: branchement socket commun (join/state/players/chat)
+- `src/client/modules/camera/followCamera.js`: utilitaires camera communs (viewport/cible/follow/clamp)
+- `src/client/modules/input/holdMove.js`: gestion commune des touches maintenues (hold to move)
 - `src/client/modes/mines/index.js`: entree client demineur
 - `src/client/modes/paint/index.js`: entree client paint
 - `src/client/modes/snake/index.js`: entree client snake

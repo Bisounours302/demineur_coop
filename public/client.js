@@ -108,6 +108,381 @@
     chatSend: "mines:chat:send"
   };
 
+  // src/client/modules/chat/createChatModule.js
+  function createChatModule(options) {
+    const {
+      state: state2,
+      chatDockEl: chatDockEl2,
+      chatFormEl: chatFormEl2,
+      chatMessagesEl: chatMessagesEl2,
+      chatInputEl: chatInputEl2,
+      resolveColorForPseudo,
+      emitTyping,
+      maxMessages = 100,
+      closedVisibleMessages = 3,
+      getMyId,
+      onOpen,
+      onClose,
+      onLocalTypingChanged
+    } = options;
+    function normalizeChatEntry(entry) {
+      const fallbackPseudo = String(entry?.pseudo || "System");
+      const fallbackColor = typeof resolveColorForPseudo === "function" ? resolveColorForPseudo(fallbackPseudo) : "#ffffff";
+      return {
+        id: String(entry?.id || `${Date.now()}-${Math.floor(Math.random() * 1e6)}`),
+        pseudo: fallbackPseudo,
+        color: String(entry?.color || fallbackColor),
+        text: String(entry?.text || "").trim(),
+        at: Number(entry?.at || Date.now())
+      };
+    }
+    function renderMessages() {
+      if (!chatMessagesEl2) return;
+      const messagesToRender = state2.chat.open ? state2.chat.messages : state2.chat.messages.slice(-closedVisibleMessages);
+      chatMessagesEl2.innerHTML = "";
+      for (const entry of messagesToRender) {
+        const li = document.createElement("li");
+        li.className = "chat-item";
+        li.innerHTML = `<strong style="color:${entry.color};">${entry.pseudo}</strong>: ${entry.text}`;
+        chatMessagesEl2.appendChild(li);
+      }
+      if (state2.chat.open) {
+        chatMessagesEl2.scrollTop = chatMessagesEl2.scrollHeight;
+      }
+    }
+    function setMessages(messages) {
+      state2.chat.messages = (messages || []).map(normalizeChatEntry).filter((message) => message.text.length > 0).slice(-maxMessages);
+      renderMessages();
+    }
+    function appendMessage(entry) {
+      const normalized = normalizeChatEntry(entry);
+      if (!normalized.text) return;
+      state2.chat.messages.push(normalized);
+      if (state2.chat.messages.length > maxMessages) {
+        state2.chat.messages = state2.chat.messages.slice(-maxMessages);
+      }
+      renderMessages();
+    }
+    function setTypingStatus2(active) {
+      const myId = typeof getMyId === "function" ? getMyId() : state2.myId;
+      if (!myId || state2.chat.typingSent === active) return;
+      if (typeof onLocalTypingChanged === "function") {
+        onLocalTypingChanged(active);
+      }
+      state2.chat.typingSent = active;
+      if (typeof emitTyping === "function") {
+        emitTyping(Boolean(active));
+      }
+    }
+    function setOpen(open, focusInput = true) {
+      const next = Boolean(open);
+      if (state2.chat.open === next) return;
+      state2.chat.open = next;
+      if (chatDockEl2) {
+        chatDockEl2.classList.toggle("open", next);
+      }
+      if (chatFormEl2) {
+        chatFormEl2.classList.toggle("hidden", !next);
+      }
+      renderMessages();
+      if (next) {
+        if (typeof onOpen === "function") {
+          onOpen();
+        }
+        setTypingStatus2(true);
+        if (focusInput && chatInputEl2) {
+          chatInputEl2.focus();
+        }
+        return;
+      }
+      if (typeof onClose === "function") {
+        onClose();
+      }
+      setTypingStatus2(false);
+      if (chatInputEl2) {
+        chatInputEl2.blur();
+      }
+    }
+    function toggleOpen() {
+      setOpen(!state2.chat.open);
+    }
+    return {
+      setMessages,
+      appendMessage,
+      renderMessages,
+      setTypingStatus: setTypingStatus2,
+      setOpen,
+      toggleOpen
+    };
+  }
+
+  // src/client/modules/hud/createHudModule.js
+  function createHudModule(options = {}) {
+    const { rootEl } = options;
+    function show() {
+      if (!rootEl) return;
+      rootEl.classList.remove("hidden");
+    }
+    function hide() {
+      if (!rootEl) return;
+      rootEl.classList.add("hidden");
+    }
+    function setText(el, text) {
+      if (!el) return;
+      el.textContent = String(text);
+    }
+    return {
+      show,
+      hide,
+      setText
+    };
+  }
+
+  // src/client/modules/lobby/createIdentityModule.js
+  function createIdentityModule(options) {
+    const {
+      state: state2,
+      avatarOptionEls: avatarOptionEls2,
+      colorPickerEl: colorPickerEl2,
+      normalizeAvatarIndex: normalizeAvatarIndex2,
+      normalizeColorIndex: normalizeColorIndex2,
+      playerColors,
+      avatarStorageKey = "avatar",
+      colorStorageKey = "colorIndex"
+    } = options;
+    function updateAvatarSelectionUI2() {
+      for (const option of avatarOptionEls2 || []) {
+        const avatar = normalizeAvatarIndex2(option.dataset.avatar);
+        const selected = avatar === state2.myAvatar;
+        option.classList.toggle("selected", selected);
+        option.setAttribute("aria-checked", selected ? "true" : "false");
+      }
+    }
+    function setMyAvatar2(value, persist = true) {
+      state2.myAvatar = normalizeAvatarIndex2(value);
+      updateAvatarSelectionUI2();
+      if (persist) {
+        localStorage.setItem(avatarStorageKey, String(state2.myAvatar));
+      }
+    }
+    function updateColorSelectionUI2() {
+      if (!colorPickerEl2) return;
+      const options2 = Array.from(colorPickerEl2.querySelectorAll(".color-option"));
+      for (const option of options2) {
+        const idxValue = normalizeColorIndex2(option.dataset.colorIndex);
+        const selected = idxValue === state2.myColorIndex;
+        option.classList.toggle("selected", selected);
+        option.setAttribute("aria-checked", selected ? "true" : "false");
+      }
+    }
+    function setMyColorIndex2(value, persist = true) {
+      state2.myColorIndex = normalizeColorIndex2(value);
+      updateColorSelectionUI2();
+      if (persist) {
+        localStorage.setItem(colorStorageKey, String(state2.myColorIndex));
+      }
+    }
+    function setupColorPicker2() {
+      if (!colorPickerEl2) return;
+      colorPickerEl2.innerHTML = "";
+      for (let i = 0; i < playerColors.length; i++) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "color-option";
+        btn.dataset.colorIndex = String(i);
+        btn.setAttribute("role", "radio");
+        btn.setAttribute("aria-checked", "false");
+        btn.title = `Couleur ${i + 1}`;
+        btn.style.setProperty("--swatch-color", playerColors[i]);
+        btn.addEventListener("click", () => setMyColorIndex2(i));
+        colorPickerEl2.appendChild(btn);
+      }
+      updateColorSelectionUI2();
+    }
+    function setupAvatarPicker2() {
+      for (const option of avatarOptionEls2 || []) {
+        option.addEventListener("click", () => {
+          setMyAvatar2(option.dataset.avatar);
+        });
+      }
+      updateAvatarSelectionUI2();
+    }
+    function drawAvatarPickerPreview2({
+      now,
+      sprites,
+      animIdleMs,
+      frameSize,
+      frameCols,
+      fallbackColor = null
+    }) {
+      const idleCol = Math.floor(now / animIdleMs) % frameCols;
+      for (const option of avatarOptionEls2 || []) {
+        const canvasEl = option.querySelector(".avatar-preview");
+        if (!canvasEl) continue;
+        const avatar = normalizeAvatarIndex2(option.dataset.avatar);
+        const image = sprites[avatar];
+        const pctx = canvasEl.getContext("2d");
+        pctx.clearRect(0, 0, canvasEl.width, canvasEl.height);
+        pctx.imageSmoothingEnabled = false;
+        if (image && image.loaded) {
+          pctx.drawImage(
+            image,
+            idleCol * frameSize,
+            0,
+            frameSize,
+            frameSize,
+            0,
+            0,
+            canvasEl.width,
+            canvasEl.height
+          );
+          continue;
+        }
+        if (fallbackColor) {
+          pctx.fillStyle = fallbackColor;
+          pctx.fillRect(10, 10, canvasEl.width - 20, canvasEl.height - 20);
+        }
+      }
+    }
+    return {
+      updateAvatarSelectionUI: updateAvatarSelectionUI2,
+      setMyAvatar: setMyAvatar2,
+      updateColorSelectionUI: updateColorSelectionUI2,
+      setMyColorIndex: setMyColorIndex2,
+      setupColorPicker: setupColorPicker2,
+      setupAvatarPicker: setupAvatarPicker2,
+      drawAvatarPickerPreview: drawAvatarPickerPreview2
+    };
+  }
+
+  // src/client/modules/network/registerCommonSocketLifecycle.js
+  function registerCommonSocketLifecycle(options) {
+    const {
+      socket: socket2,
+      events,
+      state: state2,
+      onConnect,
+      onDisconnect,
+      onJoinError,
+      onState,
+      onPlayerJoined,
+      onPlayerLeft,
+      onChatMessage,
+      onChatTyping,
+      stateEvents = []
+    } = options;
+    socket2.on("connect", () => {
+      if (state2?.chat) {
+        state2.chat.typingSent = false;
+      }
+      if (typeof onConnect === "function") {
+        onConnect();
+      }
+    });
+    socket2.on("disconnect", () => {
+      if (state2?.chat) {
+        state2.chat.typingSent = false;
+      }
+      if (typeof onDisconnect === "function") {
+        onDisconnect();
+      }
+    });
+    if (events?.joinError && typeof onJoinError === "function") {
+      socket2.on(events.joinError, (payload = {}) => onJoinError(payload));
+    }
+    const uniqueStateEvents = Array.from(new Set([events?.state, ...stateEvents || []].filter(Boolean)));
+    if (typeof onState === "function") {
+      for (const eventName of uniqueStateEvents) {
+        socket2.on(eventName, (payload = {}) => onState(payload));
+      }
+    }
+    if (events?.playerJoined && typeof onPlayerJoined === "function") {
+      socket2.on(events.playerJoined, (payload = {}) => onPlayerJoined(payload));
+    }
+    if (events?.playerLeft && typeof onPlayerLeft === "function") {
+      socket2.on(events.playerLeft, (payload = {}) => onPlayerLeft(payload));
+    }
+    if (events?.chatMessage && typeof onChatMessage === "function") {
+      socket2.on(events.chatMessage, (payload = {}) => onChatMessage(payload));
+    }
+    if (events?.chatTyping && typeof onChatTyping === "function") {
+      socket2.on(events.chatTyping, (payload = {}) => onChatTyping(payload));
+    }
+  }
+
+  // src/client/modules/camera/followCamera.js
+  function getCameraViewport(camera, canvas2) {
+    return {
+      viewW: canvas2.width / camera.scale,
+      viewH: canvas2.height / camera.scale
+    };
+  }
+  function getCameraTarget({ focusX, focusY, tileSize, viewW, viewH }) {
+    return {
+      targetX: focusX * tileSize + tileSize * 0.5 - viewW * 0.5,
+      targetY: focusY * tileSize + tileSize * 0.5 - viewH * 0.5
+    };
+  }
+  function clampCameraToWorld({ camera, canvas: canvas2, worldW, worldH }) {
+    const { viewW, viewH } = getCameraViewport(camera, canvas2);
+    camera.x = Math.max(0, Math.min(camera.x, Math.max(0, worldW - viewW)));
+    camera.y = Math.max(0, Math.min(camera.y, Math.max(0, worldH - viewH)));
+  }
+  function centerCameraOnFocus({
+    camera,
+    canvas: canvas2,
+    tileSize,
+    focusX,
+    focusY,
+    immediate = false,
+    smoothing = 0.05
+  }) {
+    const { viewW, viewH } = getCameraViewport(camera, canvas2);
+    const { targetX, targetY } = getCameraTarget({ focusX, focusY, tileSize, viewW, viewH });
+    if (immediate) {
+      camera.x = targetX;
+      camera.y = targetY;
+      return;
+    }
+    camera.x += (targetX - camera.x) * smoothing;
+    camera.y += (targetY - camera.y) * smoothing;
+  }
+
+  // src/client/modules/input/holdMove.js
+  function registerHoldMoveKey({
+    holdControls,
+    code,
+    dx,
+    dy,
+    enqueueMove: enqueueMove2,
+    holdDelayMs,
+    moveCooldownMs
+  }) {
+    if (holdControls.has(code)) return;
+    enqueueMove2(dx, dy);
+    const hold = {
+      interval: null,
+      timeout: setTimeout(() => {
+        hold.interval = setInterval(() => enqueueMove2(dx, dy), moveCooldownMs);
+      }, holdDelayMs)
+    };
+    holdControls.set(code, hold);
+  }
+  function clearHoldMoveKey(holdControls, code) {
+    const hold = holdControls.get(code);
+    if (!hold) return;
+    clearTimeout(hold.timeout);
+    if (hold.interval) {
+      clearInterval(hold.interval);
+    }
+    holdControls.delete(code);
+  }
+  function clearAllHoldMoveKeys(holdControls) {
+    for (const code of holdControls.keys()) {
+      clearHoldMoveKey(holdControls, code);
+    }
+  }
+
   // src/client/modes/mines/index.js
   var GRID_W = 70;
   var GRID_H = 70;
@@ -190,167 +565,85 @@
   function isInBounds(x, y) {
     return x >= 0 && x < GRID_W && y >= 0 && y < GRID_H;
   }
-  function updateAvatarSelectionUI() {
-    for (const option of avatarOptionEls) {
-      const avatar = normalizeAvatarIndex(option.dataset.avatar);
-      const selected = avatar === state.myAvatar;
-      option.classList.toggle("selected", selected);
-      option.setAttribute("aria-checked", selected ? "true" : "false");
-    }
-  }
-  function setMyAvatar(value, persist = true) {
-    state.myAvatar = normalizeAvatarIndex(value);
-    updateAvatarSelectionUI();
-    if (persist) {
-      localStorage.setItem("avatar", String(state.myAvatar));
-    }
-  }
-  function updateColorSelectionUI() {
-    if (!colorPickerEl) return;
-    const options = Array.from(colorPickerEl.querySelectorAll(".color-option"));
-    for (const option of options) {
-      const idxValue = normalizeColorIndex(option.dataset.colorIndex);
-      const selected = idxValue === state.myColorIndex;
-      option.classList.toggle("selected", selected);
-      option.setAttribute("aria-checked", selected ? "true" : "false");
-    }
-  }
-  function setMyColorIndex(value, persist = true) {
-    state.myColorIndex = normalizeColorIndex(value);
-    updateColorSelectionUI();
-    if (persist) {
-      localStorage.setItem("colorIndex", String(state.myColorIndex));
-    }
-  }
-  function setupColorPicker() {
-    if (!colorPickerEl) return;
-    colorPickerEl.innerHTML = "";
-    for (let i = 0; i < PLAYER_COLORS.length; i++) {
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "color-option";
-      btn.dataset.colorIndex = String(i);
-      btn.setAttribute("role", "radio");
-      btn.setAttribute("aria-checked", "false");
-      btn.title = `Couleur ${i + 1}`;
-      btn.style.setProperty("--swatch-color", PLAYER_COLORS[i]);
-      btn.addEventListener("click", () => setMyColorIndex(i));
-      colorPickerEl.appendChild(btn);
-    }
-    updateColorSelectionUI();
-  }
-  function setupAvatarPicker() {
-    if (!avatarPickerEl) return;
-    for (const option of avatarOptionEls) {
-      option.addEventListener("click", () => {
-        setMyAvatar(option.dataset.avatar);
-      });
-    }
-    updateAvatarSelectionUI();
-  }
-  function drawAvatarPickerPreview(now) {
-    if (!avatarPickerEl) return;
-    if (lobbyEl.classList.contains("hidden")) return;
-    const idleCol = Math.floor(now / ANIM_IDLE_MS) % ANIMAL_COLS;
-    for (const option of avatarOptionEls) {
-      const canvasEl = option.querySelector(".avatar-preview");
-      if (!canvasEl) continue;
-      const avatar = normalizeAvatarIndex(option.dataset.avatar);
-      const image = assets.sprites[avatar];
-      const pctx = canvasEl.getContext("2d");
-      pctx.clearRect(0, 0, canvasEl.width, canvasEl.height);
-      pctx.imageSmoothingEnabled = false;
-      if (image && image.loaded) {
-        pctx.drawImage(
-          image,
-          idleCol * ANIMAL_FRAME,
-          0,
-          ANIMAL_FRAME,
-          ANIMAL_FRAME,
-          0,
-          0,
-          canvasEl.width,
-          canvasEl.height
-        );
-        continue;
-      }
-      pctx.fillStyle = "#d7e3ff";
-      pctx.fillRect(10, 10, canvasEl.width - 20, canvasEl.height - 20);
-    }
-  }
-  function normalizeChatEntry(entry) {
-    return {
-      id: String(entry?.id || `${Date.now()}-${Math.floor(Math.random() * 1e6)}`),
-      pseudo: String(entry?.pseudo || "System"),
-      color: String(entry?.color || colorForPseudo(entry?.pseudo || "System")),
-      text: String(entry?.text || "").trim(),
-      at: Number(entry?.at || Date.now())
-    };
-  }
-  function renderChatMessages() {
-    if (!chatMessagesEl) return;
-    const messagesToRender = state.chat.open ? state.chat.messages : state.chat.messages.slice(-CHAT_CLOSED_VISIBLE_MESSAGES);
-    chatMessagesEl.innerHTML = "";
-    for (const entry of messagesToRender) {
-      const li = document.createElement("li");
-      li.className = "chat-item";
-      li.innerHTML = `<strong style="color:${entry.color};">${entry.pseudo}</strong>: ${entry.text}`;
-      chatMessagesEl.appendChild(li);
-    }
-    if (state.chat.open) {
-      chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
-    }
-  }
-  function setChatMessages(messages) {
-    state.chat.messages = (messages || []).map(normalizeChatEntry).filter((m) => m.text.length > 0).slice(-CHAT_MAX_MESSAGES);
-    renderChatMessages();
-  }
-  function appendChatMessage(entry) {
-    const normalized = normalizeChatEntry(entry);
-    if (!normalized.text) return;
-    state.chat.messages.push(normalized);
-    if (state.chat.messages.length > CHAT_MAX_MESSAGES) {
-      state.chat.messages = state.chat.messages.slice(-CHAT_MAX_MESSAGES);
-    }
-    renderChatMessages();
-  }
-  function setTypingStatus(active) {
-    if (!state.myId || state.chat.typingSent === active) return;
-    const me = state.players.get(state.myId);
-    if (me) {
-      me.isTyping = active;
-    }
-    state.chat.typingSent = active;
-    socket.emit(MINES_EVENTS.chatTyping, { active });
-  }
-  function setChatOpen(open, focusInput = true) {
-    const next = Boolean(open);
-    if (state.chat.open === next) return;
-    state.chat.open = next;
-    if (chatDockEl) {
-      chatDockEl.classList.toggle("open", next);
-    }
-    if (chatFormEl) {
-      chatFormEl.classList.toggle("hidden", !next);
-    }
-    renderChatMessages();
-    if (next) {
+  var identityModule = createIdentityModule({
+    state,
+    avatarOptionEls,
+    colorPickerEl,
+    normalizeAvatarIndex,
+    normalizeColorIndex,
+    playerColors: PLAYER_COLORS,
+    avatarStorageKey: "avatar",
+    colorStorageKey: "colorIndex"
+  });
+  var chatModule = createChatModule({
+    state,
+    chatDockEl,
+    chatFormEl,
+    chatMessagesEl,
+    chatInputEl,
+    resolveColorForPseudo: colorForPseudo,
+    emitTyping: (active) => {
+      socket.emit(MINES_EVENTS.chatTyping, { active });
+    },
+    maxMessages: CHAT_MAX_MESSAGES,
+    closedVisibleMessages: CHAT_CLOSED_VISIBLE_MESSAGES,
+    getMyId: () => state.myId,
+    onOpen: () => {
       clearAllHoldMoves();
       state.moveQueue = [];
       state.camera.dragging = false;
-      setTypingStatus(true);
-      if (focusInput && chatInputEl) {
-        chatInputEl.focus();
-      }
-    } else {
-      setTypingStatus(false);
-      if (chatInputEl) {
-        chatInputEl.blur();
+    },
+    onLocalTypingChanged: (active) => {
+      const me = state.players.get(state.myId);
+      if (me) {
+        me.isTyping = active;
       }
     }
+  });
+  var hudModule = createHudModule({ rootEl: hudEl });
+  function updateAvatarSelectionUI() {
+    identityModule.updateAvatarSelectionUI();
+  }
+  function setMyAvatar(value, persist = true) {
+    identityModule.setMyAvatar(value, persist);
+  }
+  function updateColorSelectionUI() {
+    identityModule.updateColorSelectionUI();
+  }
+  function setMyColorIndex(value, persist = true) {
+    identityModule.setMyColorIndex(value, persist);
+  }
+  function setupColorPicker() {
+    identityModule.setupColorPicker();
+  }
+  function setupAvatarPicker() {
+    identityModule.setupAvatarPicker();
+  }
+  function drawAvatarPickerPreview(now) {
+    if (lobbyEl.classList.contains("hidden")) return;
+    identityModule.drawAvatarPickerPreview({
+      now,
+      sprites: assets.sprites,
+      animIdleMs: ANIM_IDLE_MS,
+      frameSize: ANIMAL_FRAME,
+      frameCols: ANIMAL_COLS,
+      fallbackColor: "#d7e3ff"
+    });
+  }
+  function setChatMessages(messages) {
+    chatModule.setMessages(messages);
+  }
+  function appendChatMessage(entry) {
+    chatModule.appendMessage(entry);
+  }
+  function setTypingStatus(active) {
+    chatModule.setTypingStatus(active);
+  }
+  function setChatOpen(open, focusInput = true) {
+    chatModule.setOpen(open, focusInput);
   }
   function toggleChat() {
-    setChatOpen(!state.chat.open);
+    chatModule.toggleOpen();
   }
   var assets = {
     tiles: {
@@ -926,26 +1219,24 @@
     drawAvatarPickerPreview(now);
   }
   function centerCameraOnMe(immediate = false) {
-    const viewW = canvas.width / state.camera.scale;
-    const viewH = canvas.height / state.camera.scale;
-    const targetX = state.me.x * TILE_SIZE + TILE_SIZE * 0.5 - viewW * 0.5;
-    const targetY = state.me.y * TILE_SIZE + TILE_SIZE * 0.5 - viewH * 0.5;
-    if (immediate) {
-      state.camera.x = targetX;
-      state.camera.y = targetY;
-    } else {
-      state.camera.x += (targetX - state.camera.x) * 0.05;
-      state.camera.y += (targetY - state.camera.y) * 0.05;
-    }
+    centerCameraOnFocus({
+      camera: state.camera,
+      canvas,
+      tileSize: TILE_SIZE,
+      focusX: state.me.x,
+      focusY: state.me.y,
+      immediate,
+      smoothing: 0.05
+    });
     clampCamera();
   }
   function clampCamera() {
-    const worldW = GRID_W * TILE_SIZE;
-    const worldH = GRID_H * TILE_SIZE;
-    const viewW = canvas.width / state.camera.scale;
-    const viewH = canvas.height / state.camera.scale;
-    state.camera.x = clamp(state.camera.x, 0, Math.max(0, worldW - viewW));
-    state.camera.y = clamp(state.camera.y, 0, Math.max(0, worldH - viewH));
+    clampCameraToWorld({
+      camera: state.camera,
+      canvas,
+      worldW: GRID_W * TILE_SIZE,
+      worldH: GRID_H * TILE_SIZE
+    });
   }
   function updateCamera() {
     if (state.phase === "lobby") return;
@@ -953,12 +1244,16 @@
       clampCamera();
       return;
     }
-    const viewW = canvas.width / state.camera.scale;
-    const viewH = canvas.height / state.camera.scale;
+    const { viewW, viewH } = getCameraViewport(state.camera, canvas);
     const px = state.me.x * TILE_SIZE + TILE_SIZE * 0.5;
     const py = state.me.y * TILE_SIZE + TILE_SIZE * 0.5;
-    const targetX = px - viewW * 0.5;
-    const targetY = py - viewH * 0.5;
+    const { targetX, targetY } = getCameraTarget({
+      focusX: state.me.x,
+      focusY: state.me.y,
+      tileSize: TILE_SIZE,
+      viewW,
+      viewH
+    });
     if (!state.camera.isManual) {
       state.camera.x = targetX;
       state.camera.y = targetY;
@@ -985,12 +1280,12 @@
     const elapsed = state.startTime ? Date.now() - state.startTime : 0;
     const safeTotal = Math.max(0, state.map.totalCells - state.map.bombCount);
     const nearTop = state.me.y <= 3;
-    hudBombsEl.textContent = `Bombes: ${state.explosions}/${state.maxExplosions}`;
+    hudModule.setText(hudBombsEl, `Bombes: ${state.explosions}/${state.maxExplosions}`);
     hudBombsEl.classList.toggle("bombs-danger", state.explosions >= 7);
-    hudTimeEl.textContent = msToClock(elapsed);
-    hudPlayersEl.textContent = `${playerCount} joueurs`;
-    hudFlagsEl.textContent = `Drapeaux: ${flagsCount}`;
-    hudRevealedEl.textContent = `Cases revelees: ${state.revealedSafeCount}/${safeTotal}`;
+    hudModule.setText(hudTimeEl, msToClock(elapsed));
+    hudModule.setText(hudPlayersEl, `${playerCount} joueurs`);
+    hudModule.setText(hudFlagsEl, `Drapeaux: ${flagsCount}`);
+    hudModule.setText(hudRevealedEl, `Cases revelees: ${state.revealedSafeCount}/${safeTotal}`);
     hudEl.classList.toggle("near-top", nearTop);
   }
   function clearStatsCountdownTimer() {
@@ -1175,7 +1470,7 @@
     lobbyEl.classList.add("hidden");
     joinErrorEl.textContent = "";
     reconnectEl.classList.add("hidden");
-    hudEl.classList.remove("hidden");
+    hudModule.show();
     hideStatsOverlay();
     centerCameraOnMe(true);
     if (state.chat.open) {
@@ -1220,27 +1515,21 @@
     state.moveQueue.push({ dx, dy });
   }
   function registerHoldMove(code, dx, dy) {
-    if (state.holdControls.has(code)) return;
-    enqueueMove(dx, dy);
-    const hold = {
-      interval: null,
-      timeout: setTimeout(() => {
-        hold.interval = setInterval(() => enqueueMove(dx, dy), MOVE_COOLDOWN_MS);
-      }, HOLD_DELAY_MS)
-    };
-    state.holdControls.set(code, hold);
+    registerHoldMoveKey({
+      holdControls: state.holdControls,
+      code,
+      dx,
+      dy,
+      enqueueMove,
+      holdDelayMs: HOLD_DELAY_MS,
+      moveCooldownMs: MOVE_COOLDOWN_MS
+    });
   }
   function clearHoldMove(code) {
-    const hold = state.holdControls.get(code);
-    if (!hold) return;
-    clearTimeout(hold.timeout);
-    if (hold.interval) clearInterval(hold.interval);
-    state.holdControls.delete(code);
+    clearHoldMoveKey(state.holdControls, code);
   }
   function clearAllHoldMoves() {
-    for (const code of state.holdControls.keys()) {
-      clearHoldMove(code);
-    }
+    clearAllHoldMoveKeys(state.holdControls);
   }
   function updateLocalPlayerFromServerMove(id, x, y) {
     const player = state.players.get(id);
@@ -1401,47 +1690,46 @@
   window.addEventListener("keyup", (event) => {
     clearHoldMove(event.code);
   });
-  socket.on("connect", () => {
-    state.myId = socket.id;
-    state.chat.typingSent = false;
-    reconnectEl.classList.add("hidden");
-    if (state.hasJoinedOnce && state.myPseudo) {
-      socket.emit(MINES_EVENTS.join, {
-        pseudo: state.myPseudo,
-        avatar: state.myAvatar,
-        colorIndex: state.myColorIndex,
-        lobbyId: lobbyIdFromQuery
-      });
+  registerCommonSocketLifecycle({
+    socket,
+    events: MINES_EVENTS,
+    state,
+    onConnect: () => {
+      state.myId = socket.id;
+      reconnectEl.classList.add("hidden");
+      if (state.hasJoinedOnce && state.myPseudo) {
+        socket.emit(MINES_EVENTS.join, {
+          pseudo: state.myPseudo,
+          avatar: state.myAvatar,
+          colorIndex: state.myColorIndex,
+          lobbyId: lobbyIdFromQuery
+        });
+      }
+    },
+    onDisconnect: () => {
+      clearAllHoldMoves();
+      if (state.hasJoinedOnce) {
+        reconnectEl.classList.remove("hidden");
+      }
+    },
+    onJoinError: (payload = {}) => {
+      state.phase = "lobby";
+      lobbyEl.classList.remove("hidden");
+      joinErrorEl.textContent = payload.message || "Impossible de rejoindre.";
+    },
+    onState: applySnapshot,
+    stateEvents: [MINES_EVENTS.gameNew],
+    onPlayerJoined: applyPlayerPayload,
+    onPlayerLeft: (payload) => {
+      state.activeDigs.delete(payload.id);
+      state.players.delete(payload.id);
+    },
+    onChatMessage: appendChatMessage,
+    onChatTyping: (payload = {}) => {
+      const player = state.players.get(payload.id);
+      if (!player) return;
+      player.isTyping = Boolean(payload.active);
     }
-  });
-  socket.on("disconnect", () => {
-    clearAllHoldMoves();
-    state.chat.typingSent = false;
-    if (state.hasJoinedOnce) {
-      reconnectEl.classList.remove("hidden");
-    }
-  });
-  socket.on(MINES_EVENTS.joinError, (payload = {}) => {
-    state.phase = "lobby";
-    lobbyEl.classList.remove("hidden");
-    joinErrorEl.textContent = payload.message || "Impossible de rejoindre.";
-  });
-  socket.on(MINES_EVENTS.state, applySnapshot);
-  socket.on(MINES_EVENTS.gameNew, applySnapshot);
-  socket.on(MINES_EVENTS.playerJoined, (payload) => {
-    applyPlayerPayload(payload);
-  });
-  socket.on(MINES_EVENTS.playerLeft, (payload) => {
-    state.activeDigs.delete(payload.id);
-    state.players.delete(payload.id);
-  });
-  socket.on(MINES_EVENTS.chatMessage, (payload) => {
-    appendChatMessage(payload);
-  });
-  socket.on(MINES_EVENTS.chatTyping, (payload = {}) => {
-    const player = state.players.get(payload.id);
-    if (!player) return;
-    player.isTyping = Boolean(payload.active);
   });
   socket.on(MINES_EVENTS.playerMoved, (payload) => {
     updateLocalPlayerFromServerMove(payload.id, payload.x, payload.y);

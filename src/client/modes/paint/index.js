@@ -14,6 +14,21 @@ import {
   normalizeColorIndex,
 } from '../../core/shared.js';
 import { PAINT_EVENTS } from '../../core/events.js';
+import { createChatModule } from '../../modules/chat/createChatModule.js';
+import { createHudModule } from '../../modules/hud/createHudModule.js';
+import { createIdentityModule } from '../../modules/lobby/createIdentityModule.js';
+import { registerCommonSocketLifecycle } from '../../modules/network/registerCommonSocketLifecycle.js';
+import {
+  clampCameraToWorld,
+  centerCameraOnFocus,
+  getCameraTarget,
+  getCameraViewport,
+} from '../../modules/camera/followCamera.js';
+import {
+  clearAllHoldMoveKeys,
+  clearHoldMoveKey,
+  registerHoldMoveKey,
+} from '../../modules/input/holdMove.js';
 
 const TILE_SIZE = 20;
 const EXPORT_TILE_SIZE = 2;
@@ -103,203 +118,100 @@ function normalizePaletteIndex(value) {
   return index;
 }
 
-function updateAvatarSelectionUI() {
-  for (const option of avatarOptionEls) {
-    const avatar = normalizeAvatarIndex(option.dataset.avatar);
-    const selected = avatar === state.myAvatar;
-    option.classList.toggle('selected', selected);
-    option.setAttribute('aria-checked', selected ? 'true' : 'false');
-  }
-}
+const identityModule = createIdentityModule({
+  state,
+  avatarOptionEls,
+  colorPickerEl,
+  normalizeAvatarIndex,
+  normalizeColorIndex,
+  playerColors: PLAYER_COLORS,
+  avatarStorageKey: 'avatar',
+  colorStorageKey: 'colorIndex',
+});
 
-function setMyAvatar(value, persist = true) {
-  state.myAvatar = normalizeAvatarIndex(value);
-  updateAvatarSelectionUI();
-  if (persist) {
-    localStorage.setItem('avatar', String(state.myAvatar));
-  }
-}
-
-function updateColorSelectionUI() {
-  if (!colorPickerEl) return;
-  const options = Array.from(colorPickerEl.querySelectorAll('.color-option'));
-  for (const option of options) {
-    const idxValue = normalizeColorIndex(option.dataset.colorIndex);
-    const selected = idxValue === state.myColorIndex;
-    option.classList.toggle('selected', selected);
-    option.setAttribute('aria-checked', selected ? 'true' : 'false');
-  }
-}
-
-function setMyColorIndex(value, persist = true) {
-  state.myColorIndex = normalizeColorIndex(value);
-  updateColorSelectionUI();
-  if (persist) {
-    localStorage.setItem('colorIndex', String(state.myColorIndex));
-  }
-}
-
-function setupColorPicker() {
-  if (!colorPickerEl) return;
-
-  colorPickerEl.innerHTML = '';
-  for (let i = 0; i < PLAYER_COLORS.length; i++) {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'color-option';
-    btn.dataset.colorIndex = String(i);
-    btn.setAttribute('role', 'radio');
-    btn.setAttribute('aria-checked', 'false');
-    btn.title = `Couleur ${i + 1}`;
-    btn.style.setProperty('--swatch-color', PLAYER_COLORS[i]);
-    btn.addEventListener('click', () => setMyColorIndex(i));
-    colorPickerEl.appendChild(btn);
-  }
-
-  updateColorSelectionUI();
-}
-
-function setupAvatarPicker() {
-  if (!avatarPickerEl) return;
-
-  for (const option of avatarOptionEls) {
-    option.addEventListener('click', () => {
-      setMyAvatar(option.dataset.avatar);
-    });
-  }
-
-  updateAvatarSelectionUI();
-}
-
-function drawAvatarPickerPreview(now) {
-  if (!avatarPickerEl) return;
-  if (lobbyEl.classList.contains('hidden')) return;
-
-  const idleCol = Math.floor(now / ANIM_IDLE_MS) % ANIMAL_COLS;
-
-  for (const option of avatarOptionEls) {
-    const canvasEl = option.querySelector('.avatar-preview');
-    if (!canvasEl) continue;
-
-    const avatar = normalizeAvatarIndex(option.dataset.avatar);
-    const image = assets.sprites[avatar];
-    const pctx = canvasEl.getContext('2d');
-
-    pctx.clearRect(0, 0, canvasEl.width, canvasEl.height);
-    pctx.imageSmoothingEnabled = false;
-
-    if (image && image.loaded) {
-      pctx.drawImage(
-        image,
-        idleCol * ANIMAL_FRAME,
-        0,
-        ANIMAL_FRAME,
-        ANIMAL_FRAME,
-        0,
-        0,
-        canvasEl.width,
-        canvasEl.height,
-      );
-      continue;
-    }
-
-    pctx.fillStyle = '#d7e3ff';
-    pctx.fillRect(10, 10, canvasEl.width - 20, canvasEl.height - 20);
-  }
-}
-
-function normalizeChatEntry(entry) {
-  return {
-    id: String(entry?.id || `${Date.now()}-${Math.floor(Math.random() * 1e6)}`),
-    pseudo: String(entry?.pseudo || 'System'),
-    color: String(entry?.color || colorForPseudo(entry?.pseudo || 'System')),
-    text: String(entry?.text || '').trim(),
-    at: Number(entry?.at || Date.now()),
-  };
-}
-
-function renderChatMessages() {
-  if (!chatMessagesEl) return;
-
-  const messagesToRender = state.chat.open
-    ? state.chat.messages
-    : state.chat.messages.slice(-CHAT_CLOSED_VISIBLE_MESSAGES);
-
-  chatMessagesEl.innerHTML = '';
-  for (const entry of messagesToRender) {
-    const li = document.createElement('li');
-    li.className = 'chat-item';
-    li.innerHTML = `<strong style="color:${entry.color};">${entry.pseudo}</strong>: ${entry.text}`;
-    chatMessagesEl.appendChild(li);
-  }
-
-  if (state.chat.open) {
-    chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
-  }
-}
-
-function setChatMessages(messages) {
-  state.chat.messages = (messages || [])
-    .map(normalizeChatEntry)
-    .filter((m) => m.text.length > 0)
-    .slice(-CHAT_MAX_MESSAGES);
-  renderChatMessages();
-}
-
-function appendChatMessage(entry) {
-  const normalized = normalizeChatEntry(entry);
-  if (!normalized.text) return;
-
-  state.chat.messages.push(normalized);
-  if (state.chat.messages.length > CHAT_MAX_MESSAGES) {
-    state.chat.messages = state.chat.messages.slice(-CHAT_MAX_MESSAGES);
-  }
-  renderChatMessages();
-}
-
-function setTypingStatus(active) {
-  if (!state.myId || state.chat.typingSent === active) return;
-
-  const me = state.players.get(state.myId);
-  if (me) {
-    me.isTyping = active;
-  }
-
-  state.chat.typingSent = active;
-  socket.emit(PAINT_EVENTS.chatTyping, { active });
-}
-
-function setChatOpen(open, focusInput = true) {
-  const next = Boolean(open);
-  if (state.chat.open === next) return;
-
-  state.chat.open = next;
-  if (chatDockEl) {
-    chatDockEl.classList.toggle('open', next);
-  }
-  if (chatFormEl) {
-    chatFormEl.classList.toggle('hidden', !next);
-  }
-  renderChatMessages();
-
-  if (next) {
+const chatModule = createChatModule({
+  state,
+  chatDockEl,
+  chatFormEl,
+  chatMessagesEl,
+  chatInputEl,
+  resolveColorForPseudo: colorForPseudo,
+  emitTyping: (active) => {
+    socket.emit(PAINT_EVENTS.chatTyping, { active });
+  },
+  maxMessages: CHAT_MAX_MESSAGES,
+  closedVisibleMessages: CHAT_CLOSED_VISIBLE_MESSAGES,
+  getMyId: () => state.myId,
+  onOpen: () => {
     clearAllHoldMoves();
     state.moveQueue = [];
     state.camera.dragging = false;
-    setTypingStatus(true);
-    if (focusInput && chatInputEl) {
-      chatInputEl.focus();
+  },
+  onLocalTypingChanged: (active) => {
+    const me = state.players.get(state.myId);
+    if (me) {
+      me.isTyping = active;
     }
-  } else {
-    setTypingStatus(false);
-    if (chatInputEl) {
-      chatInputEl.blur();
-    }
-  }
+  },
+});
+
+const hudModule = createHudModule({ rootEl: hudEl });
+
+function updateAvatarSelectionUI() {
+  identityModule.updateAvatarSelectionUI();
+}
+
+function setMyAvatar(value, persist = true) {
+  identityModule.setMyAvatar(value, persist);
+}
+
+function updateColorSelectionUI() {
+  identityModule.updateColorSelectionUI();
+}
+
+function setMyColorIndex(value, persist = true) {
+  identityModule.setMyColorIndex(value, persist);
+}
+
+function setupColorPicker() {
+  identityModule.setupColorPicker();
+}
+
+function setupAvatarPicker() {
+  identityModule.setupAvatarPicker();
+}
+
+function drawAvatarPickerPreview(now) {
+  if (lobbyEl.classList.contains('hidden')) return;
+
+  identityModule.drawAvatarPickerPreview({
+    now,
+    sprites: assets.sprites,
+    animIdleMs: ANIM_IDLE_MS,
+    frameSize: ANIMAL_FRAME,
+    frameCols: ANIMAL_COLS,
+    fallbackColor: '#d7e3ff',
+  });
+}
+
+function setChatMessages(messages) {
+  chatModule.setMessages(messages);
+}
+
+function appendChatMessage(entry) {
+  chatModule.appendMessage(entry);
+}
+
+function setTypingStatus(active) {
+  chatModule.setTypingStatus(active);
+}
+
+function setChatOpen(open, focusInput = true) {
+  chatModule.setOpen(open, focusInput);
 }
 
 function toggleChat() {
-  setChatOpen(!state.chat.open);
+  chatModule.toggleOpen();
 }
 
 function updatePaletteSelectionUI() {
@@ -611,31 +523,26 @@ function renderFrame() {
 }
 
 function centerCameraOnMe(immediate = false) {
-  const viewW = canvas.width / state.camera.scale;
-  const viewH = canvas.height / state.camera.scale;
-
-  const targetX = state.me.x * TILE_SIZE + TILE_SIZE * 0.5 - viewW * 0.5;
-  const targetY = state.me.y * TILE_SIZE + TILE_SIZE * 0.5 - viewH * 0.5;
-
-  if (immediate) {
-    state.camera.x = targetX;
-    state.camera.y = targetY;
-  } else {
-    state.camera.x += (targetX - state.camera.x) * 0.05;
-    state.camera.y += (targetY - state.camera.y) * 0.05;
-  }
+  centerCameraOnFocus({
+    camera: state.camera,
+    canvas,
+    tileSize: TILE_SIZE,
+    focusX: state.me.x,
+    focusY: state.me.y,
+    immediate,
+    smoothing: 0.05,
+  });
 
   clampCamera();
 }
 
 function clampCamera() {
-  const worldW = state.map.width * TILE_SIZE;
-  const worldH = state.map.height * TILE_SIZE;
-  const viewW = canvas.width / state.camera.scale;
-  const viewH = canvas.height / state.camera.scale;
-
-  state.camera.x = clamp(state.camera.x, 0, Math.max(0, worldW - viewW));
-  state.camera.y = clamp(state.camera.y, 0, Math.max(0, worldH - viewH));
+  clampCameraToWorld({
+    camera: state.camera,
+    canvas,
+    worldW: state.map.width * TILE_SIZE,
+    worldH: state.map.height * TILE_SIZE,
+  });
 }
 
 function updateCamera() {
@@ -645,13 +552,17 @@ function updateCamera() {
     return;
   }
 
-  const viewW = canvas.width / state.camera.scale;
-  const viewH = canvas.height / state.camera.scale;
+  const { viewW, viewH } = getCameraViewport(state.camera, canvas);
   const px = state.me.x * TILE_SIZE + TILE_SIZE * 0.5;
   const py = state.me.y * TILE_SIZE + TILE_SIZE * 0.5;
 
-  const targetX = px - viewW * 0.5;
-  const targetY = py - viewH * 0.5;
+  const { targetX, targetY } = getCameraTarget({
+    focusX: state.me.x,
+    focusY: state.me.y,
+    tileSize: TILE_SIZE,
+    viewW,
+    viewH,
+  });
 
   if (!state.camera.isManual) {
     state.camera.x = targetX;
@@ -681,9 +592,9 @@ function updateHud() {
   const elapsed = state.startTime ? Date.now() - state.startTime : 0;
   const selectedColor = state.map.palette[state.selectedPaletteIndex] || '#000000';
 
-  hudPlayersEl.textContent = `${playerCount} joueurs`;
-  hudTimeEl.textContent = msToClock(elapsed);
-  hudColorEl.textContent = `Couleur: ${selectedColor}`;
+  hudModule.setText(hudPlayersEl, `${playerCount} joueurs`);
+  hudModule.setText(hudTimeEl, msToClock(elapsed));
+  hudModule.setText(hudColorEl, `Couleur: ${selectedColor}`);
 }
 
 function applyPlayerPayload(payload) {
@@ -778,7 +689,7 @@ function applySnapshot(payload) {
   lobbyEl.classList.add('hidden');
   joinErrorEl.textContent = '';
   reconnectEl.classList.add('hidden');
-  hudEl.classList.remove('hidden');
+  hudModule.show();
   paletteDockEl?.classList.remove('hidden');
 
   setupPaintPalette();
@@ -843,30 +754,23 @@ function enqueueMove(dx, dy) {
 }
 
 function registerHoldMove(code, dx, dy) {
-  if (state.holdControls.has(code)) return;
-
-  enqueueMove(dx, dy);
-  const hold = {
-    interval: null,
-    timeout: setTimeout(() => {
-      hold.interval = setInterval(() => enqueueMove(dx, dy), MOVE_COOLDOWN_MS);
-    }, HOLD_DELAY_MS),
-  };
-  state.holdControls.set(code, hold);
+  registerHoldMoveKey({
+    holdControls: state.holdControls,
+    code,
+    dx,
+    dy,
+    enqueueMove,
+    holdDelayMs: HOLD_DELAY_MS,
+    moveCooldownMs: MOVE_COOLDOWN_MS,
+  });
 }
 
 function clearHoldMove(code) {
-  const hold = state.holdControls.get(code);
-  if (!hold) return;
-  clearTimeout(hold.timeout);
-  if (hold.interval) clearInterval(hold.interval);
-  state.holdControls.delete(code);
+  clearHoldMoveKey(state.holdControls, code);
 }
 
 function clearAllHoldMoves() {
-  for (const code of state.holdControls.keys()) {
-    clearHoldMove(code);
-  }
+  clearAllHoldMoveKeys(state.holdControls);
 }
 
 function updateLocalPlayerFromServerMove(id, x, y) {
@@ -1067,53 +971,45 @@ window.addEventListener('keyup', (event) => {
   clearHoldMove(event.code);
 });
 
-socket.on('connect', () => {
-  state.myId = socket.id;
-  state.chat.typingSent = false;
-  reconnectEl.classList.add('hidden');
+registerCommonSocketLifecycle({
+  socket,
+  events: PAINT_EVENTS,
+  state,
+  onConnect: () => {
+    state.myId = socket.id;
+    reconnectEl.classList.add('hidden');
 
-  if (state.hasJoinedOnce && state.myPseudo) {
-    socket.emit(PAINT_EVENTS.join, {
-      pseudo: state.myPseudo,
-      avatar: state.myAvatar,
-      colorIndex: state.myColorIndex,
-      lobbyId: lobbyIdFromQuery,
-    });
-  }
-});
-
-socket.on('disconnect', () => {
-  clearAllHoldMoves();
-  state.chat.typingSent = false;
-  if (state.hasJoinedOnce) {
-    reconnectEl.classList.remove('hidden');
-  }
-});
-
-socket.on(PAINT_EVENTS.joinError, (payload = {}) => {
-  state.phase = 'lobby';
-  lobbyEl.classList.remove('hidden');
-  joinErrorEl.textContent = payload.message || 'Impossible de rejoindre.';
-});
-
-socket.on(PAINT_EVENTS.state, applySnapshot);
-
-socket.on(PAINT_EVENTS.playerJoined, (payload) => {
-  applyPlayerPayload(payload);
-});
-
-socket.on(PAINT_EVENTS.playerLeft, (payload) => {
-  state.players.delete(payload.id);
-});
-
-socket.on(PAINT_EVENTS.chatMessage, (payload) => {
-  appendChatMessage(payload);
-});
-
-socket.on(PAINT_EVENTS.chatTyping, (payload = {}) => {
-  const player = state.players.get(payload.id);
-  if (!player) return;
-  player.isTyping = Boolean(payload.active);
+    if (state.hasJoinedOnce && state.myPseudo) {
+      socket.emit(PAINT_EVENTS.join, {
+        pseudo: state.myPseudo,
+        avatar: state.myAvatar,
+        colorIndex: state.myColorIndex,
+        lobbyId: lobbyIdFromQuery,
+      });
+    }
+  },
+  onDisconnect: () => {
+    clearAllHoldMoves();
+    if (state.hasJoinedOnce) {
+      reconnectEl.classList.remove('hidden');
+    }
+  },
+  onJoinError: (payload = {}) => {
+    state.phase = 'lobby';
+    lobbyEl.classList.remove('hidden');
+    joinErrorEl.textContent = payload.message || 'Impossible de rejoindre.';
+  },
+  onState: applySnapshot,
+  onPlayerJoined: applyPlayerPayload,
+  onPlayerLeft: (payload) => {
+    state.players.delete(payload.id);
+  },
+  onChatMessage: appendChatMessage,
+  onChatTyping: (payload = {}) => {
+    const player = state.players.get(payload.id);
+    if (!player) return;
+    player.isTyping = Boolean(payload.active);
+  },
 });
 
 socket.on(PAINT_EVENTS.playerMoved, (payload) => {
