@@ -48,15 +48,18 @@ Modules de jeux (separes):
 
 - `server/games/minesweeperSession.js`: regles et etat du demineur
 - `server/games/paintSession.js`: regles et etat du paint geant
+- `server/games/snakeSession.js`: regles et etat du snake geant
 - `server/games/skeletonSession.js`: squelette de session pour demarrer un 3e mode
 
 Points d entree compatibilite:
 
 - `gameSession.js`: wrapper vers le module demineur
 - `paintSession.js`: wrapper vers le module paint
+- `snakeSession.js`: wrapper vers le module snake
 - `server/socket/events.js`: conventions de noms d evenements Socket.io
 - `server/socket/registerMinesSocketHandlers.js`: handlers Socket.io specifiques demineur
 - `server/socket/registerPaintSocketHandlers.js`: handlers Socket.io specifiques paint
+- `server/socket/registerSnakeSocketHandlers.js`: handlers Socket.io specifiques snake
 - `server.js`: orchestration Express + Socket.io + lobbies par mode
 
 Client modulaire + build:
@@ -65,6 +68,7 @@ Client modulaire + build:
 - `src/client/core/events.js`: noms d evenements Socket.io partages
 - `src/client/modes/mines/index.js`: entree client demineur
 - `src/client/modes/paint/index.js`: entree client paint
+- `src/client/modes/snake/index.js`: entree client snake
 - `src/client/modes/skeleton/index.js`: entree client squelette
 - `scripts/build-client.js`: bundling esbuild vers `public/*.js`
 
@@ -72,15 +76,16 @@ Clients de jeux (separes):
 
 - `public/client.js`: bundle client demineur genere
 - `public/paint-client.js`: bundle client paint genere
+- `public/snake-client.js`: bundle client snake genere
 - `public/skeleton-client.js`: bundle client squelette genere
-- `public/index.html` et `public/paint.html`: pages dediees
+- `public/index.html`, `public/paint.html` et `public/snake.html`: pages dediees
 - `public/skeleton.html`: page squelette de reference
 - `public/style.css`: style partage HUD, chat, overlays, palette
 
 Convention evenements Socket.io:
 
-- Tous les evenements sont prefixes par mode (`mines:*`, `paint:*`, `skeleton:*`)
-- Exemples: `mines:join`, `mines:cell:reveal`, `paint:pixel:place`
+- Tous les evenements sont prefixes par mode (`mines:*`, `paint:*`, `snake:*`, `skeleton:*`)
+- Exemples: `mines:join`, `mines:cell:reveal`, `paint:pixel:place`, `snake:turn`
 
 ## Ajouter un nouveau jeu
 
@@ -125,9 +130,15 @@ newMode: {
 - Ecran de stats 60 secondes puis nouvelle partie automatique
 - Mode paint: sauvegarde auto toutes les 5 minutes uniquement si la carte a change
 - Sauvegardes paint: `data/paint/<lobbyId>.json` (restaurees automatiquement au demarrage)
+- Mode snake: deplacement automatique, changement de direction aux fleches, collision queue = mort + respawn
 
 ## Securite reseau
 
 - Le CORS Socket.io est filtre par liste d origines autorisees (plus de `origin: *`).
 - Variable optionnelle: `ALLOWED_ORIGINS` (CSV), exemple:
-	`ALLOWED_ORIGINS=https://demineur.everbloom.fr,https://paint.everbloom.fr`
+	`ALLOWED_ORIGINS=https://demineur.everbloom.fr,https://paint.everbloom.fr,https://snake.everbloom.fr`
+
+## Sous-domaines
+
+- `paint.everbloom.fr`: script d aide `setup-paint.sh`
+- `snake.everbloom.fr`: script d aide `setup-snake.sh`

@@ -47,3 +47,17 @@ export const SKELETON_EVENTS = {
   chatTyping: 'skeleton:chat:typing',
   chatSend: 'skeleton:chat:send',
 };
+
+export const SNAKE_EVENTS = {
+  join: 'snake:join',
+  joinError: 'snake:error:join',
+  state: 'snake:state',
+  playerJoined: 'snake:player:joined',
+  playerLeft: 'snake:player:left',
+  chatMessage: 'snake:chat:message',
+  chatTyping: 'snake:chat:typing',
+  turn: 'snake:turn',
+  tick: 'snake:tick',
+  playerDied: 'snake:player:died',
+  chatSend: 'snake:chat:send',
+};

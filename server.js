@@ -5,9 +5,16 @@ const { Server } = require('socket.io');
 
 const { createGameSession, STATS_DURATION_MS } = require('./gameSession');
 const { createPaintSession } = require('./paintSession');
-const { MODE_EVENTS, MINES_ACTION_EVENTS, PAINT_ACTION_EVENTS } = require('./server/socket/events');
+const { createSnakeSession } = require('./snakeSession');
+const {
+  MODE_EVENTS,
+  MINES_ACTION_EVENTS,
+  PAINT_ACTION_EVENTS,
+  SNAKE_ACTION_EVENTS,
+} = require('./server/socket/events');
 const { registerMinesSocketHandlers } = require('./server/socket/registerMinesSocketHandlers');
 const { registerPaintSocketHandlers } = require('./server/socket/registerPaintSocketHandlers');
+const { registerSnakeSocketHandlers } = require('./server/socket/registerSnakeSocketHandlers');
 
 const PORT = Number(process.env.PORT) || 3000;
 
@@ -17,6 +24,7 @@ function parseAllowedOrigins(value) {
     return [
       'https://demineur.everbloom.fr',
       'https://paint.everbloom.fr',
+      'https://snake.everbloom.fr',
       'http://localhost:3000',
       `http://localhost:${PORT}`,
     ];
@@ -51,6 +59,10 @@ app.get('/paint', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'paint.html'));
 });
 
+app.get('/snake', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'snake.html'));
+});
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 function normalizeLobbyId(value, fallbackLobbyId) {
@@ -64,6 +76,7 @@ const MODE_RUNTIME = {
   mines: {
     defaultLobbyId: 'global',
     lobbies: new Map(),
+    hasPositionMove: true,
     createSession: () => {
       const session = createGameSession();
       session.initNewGame();
@@ -79,6 +92,7 @@ const MODE_RUNTIME = {
   paint: {
     defaultLobbyId: 'paint-global',
     lobbies: new Map(),
+    hasPositionMove: true,
     createSession: (lobbyId) => createPaintSession({ persistKey: lobbyId }),
     onEmptyLobby: (lobby) => {
       if (lobby && lobby.session && typeof lobby.session.dispose === 'function') {
@@ -87,14 +101,37 @@ const MODE_RUNTIME = {
     },
     events: MODE_EVENTS.paint,
   },
+  snake: {
+    defaultLobbyId: 'snake-global',
+    lobbies: new Map(),
+    hasPositionMove: false,
+    createSession: () => createSnakeSession({
+      onPlayerDied: (socketId, payload) => {
+        io.to(socketId).emit(SNAKE_ACTION_EVENTS.deathOut, payload || {});
+      },
+    }),
+    onEmptyLobby: (lobby) => {
+      if (lobby && lobby.session && typeof lobby.session.dispose === 'function') {
+        lobby.session.dispose();
+      }
+    },
+    events: MODE_EVENTS.snake,
+  },
 };
 
 function getOrCreateLobby(mode, lobbyId) {
   const runtime = MODE_RUNTIME[mode];
   if (!runtime.lobbies.has(lobbyId)) {
+    const session = runtime.createSession(lobbyId);
+    if (session && typeof session.setBroadcast === 'function') {
+      session.setBroadcast((event, payload) => {
+        io.to(lobbyId).emit(event, payload);
+      });
+    }
+
     runtime.lobbies.set(lobbyId, {
       id: lobbyId,
-      session: runtime.createSession(lobbyId),
+      session,
     });
   }
   return runtime.lobbies.get(lobbyId);
@@ -254,21 +291,24 @@ function registerCommonModeHandlers(socket, mode) {
     handleJoin(socket, mode, payload);
   });
 
-  socket.on(runtime.events.move, (payload = {}) => {
-    const ctx = getContextForSocket(socket, mode);
-    if (!ctx) return;
+  if (runtime.hasPositionMove && runtime.events.move && runtime.events.moved) {
+    socket.on(runtime.events.move, (payload = {}) => {
+      const ctx = getContextForSocket(socket, mode);
+      if (!ctx) return;
+      if (!ctx.lobby.session || typeof ctx.lobby.session.movePlayer !== 'function') return;
 
-    const { x, y } = sanitizeCoords(payload);
-    const moved = ctx.lobby.session.movePlayer(socket.id, x, y);
+      const { x, y } = sanitizeCoords(payload);
+      const moved = ctx.lobby.session.movePlayer(socket.id, x, y);
 
-    if (!moved.ok) return;
+      if (!moved.ok) return;
 
-    io.to(ctx.lobbyId).emit(runtime.events.moved, {
-      id: moved.player.id,
-      x: moved.player.x,
-      y: moved.player.y,
+      io.to(ctx.lobbyId).emit(runtime.events.moved, {
+        id: moved.player.id,
+        x: moved.player.x,
+        y: moved.player.y,
+      });
     });
-  });
+  }
 
   socket.on(runtime.events.typingIn, (payload = {}) => {
     const ctx = getContextForSocket(socket, mode);
@@ -297,6 +337,7 @@ function registerCommonModeHandlers(socket, mode) {
 io.on('connection', (socket) => {
   registerCommonModeHandlers(socket, 'mines');
   registerCommonModeHandlers(socket, 'paint');
+  registerCommonModeHandlers(socket, 'snake');
 
   registerMinesSocketHandlers({
     socket,
@@ -313,6 +354,12 @@ io.on('connection', (socket) => {
     getContextForSocket,
     sanitizeCoords,
     paintActionEvents: PAINT_ACTION_EVENTS,
+  });
+
+  registerSnakeSocketHandlers({
+    socket,
+    getContextForSocket,
+    snakeActionEvents: SNAKE_ACTION_EVENTS,
   });
 
   socket.on('disconnect', () => {

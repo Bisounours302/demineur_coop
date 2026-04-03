@@ -25,6 +25,17 @@ const MODE_EVENTS = {
     chatIn: 'paint:chat:send',
     chatOut: 'paint:chat:message',
   },
+  snake: {
+    join: 'snake:join',
+    joinError: 'snake:error:join',
+    state: 'snake:state',
+    playerJoined: 'snake:player:joined',
+    playerLeft: 'snake:player:left',
+    typingIn: 'snake:chat:typing',
+    typingOut: 'snake:chat:typing',
+    chatIn: 'snake:chat:send',
+    chatOut: 'snake:chat:message',
+  },
 };
 
 const MINES_ACTION_EVENTS = {
@@ -42,8 +53,15 @@ const PAINT_ACTION_EVENTS = {
   placeOut: 'paint:pixel',
 };
 
+const SNAKE_ACTION_EVENTS = {
+  turnIn: 'snake:turn',
+  tickOut: 'snake:tick',
+  deathOut: 'snake:player:died',
+};
+
 module.exports = {
   MODE_EVENTS,
   MINES_ACTION_EVENTS,
   PAINT_ACTION_EVENTS,
+  SNAKE_ACTION_EVENTS,
 };
