@@ -74,25 +74,10 @@
         tick: "snake:tick",
         playerDied: "snake:player:died"
       };
-      var SKELETON_EVENTS = {
-        join: "skeleton:join",
-        joinError: "skeleton:error:join",
-        state: "skeleton:state",
-        playerJoined: "skeleton:player:joined",
-        playerLeft: "skeleton:player:left",
-        move: "skeleton:move",
-        playerMoved: "skeleton:player:moved",
-        chatTyping: "skeleton:chat:typing",
-        chatSend: "skeleton:chat:send",
-        chatMessage: "skeleton:chat:message",
-        action: "skeleton:action",
-        actionApplied: "skeleton:action:applied"
-      };
       module.exports = {
         MINES_EVENTS,
         PAINT_EVENTS,
-        SNAKE_EVENTS: SNAKE_EVENTS2,
-        SKELETON_EVENTS
+        SNAKE_EVENTS: SNAKE_EVENTS2
       };
     }
   });
@@ -1103,11 +1088,19 @@
   var ANIM_IDLE_MS = 220;
   var ANIMAL_FRAME = 32;
   var ANIMAL_COLS = 4;
+  var HUD_UPDATE_INTERVAL_MS = 120;
+  var LEADERBOARD_UPDATE_INTERVAL_MS = 220;
   var DIRECTION_BY_KEY = {
     ArrowUp: "up",
     ArrowDown: "down",
     ArrowLeft: "left",
     ArrowRight: "right"
+  };
+  var OPPOSITE_DIRECTION = {
+    up: "down",
+    down: "up",
+    left: "right",
+    right: "left"
   };
   var sprites = [
     loadImage("/assets/BIRDSPRITESHEET_Blue.png"),
@@ -1120,7 +1113,17 @@
   var appleImage = loadImage("/assets/apple.png");
   var state = {
     apples: [],
-    map: { width: 70, height: 70, totalCells: 70 * 70, tickMs: 180, appleCount: 1 }
+    map: { width: 70, height: 70, totalCells: 70 * 70, tickMs: 180, appleCount: 1 },
+    input: {
+      pendingDirection: null,
+      pendingUntil: 0
+    },
+    ui: {
+      lastHudUpdateAt: 0,
+      lastLeaderboardUpdateAt: 0,
+      leaderboardListSignature: "",
+      leaderboardStatusSignature: ""
+    }
   };
   var hudScoreEl = document.getElementById("hudScore");
   var hudPlayersEl = document.getElementById("hudPlayers");
@@ -1143,23 +1146,34 @@
     return player.color || colorForPseudo(player.pseudo);
   }
   function applyPlayerPayload(payload) {
-    state.players.set(payload.id, {
-      id: payload.id,
-      pseudo: payload.pseudo,
-      avatar: normalizeAvatarIndex(payload.avatar),
-      colorIndex: normalizeColorIndex(payload.colorIndex),
-      color: payload.color || colorForPseudo(payload.pseudo),
-      x: Number(payload.x) || 0,
-      y: Number(payload.y) || 0,
-      direction: String(payload.direction || "right"),
-      score: Math.max(0, Number(payload.score) || 0),
-      isTyping: Boolean(payload.isTyping),
-      segments: Array.isArray(payload.segments) ? payload.segments.map((s) => ({ x: Number(s.x) || 0, y: Number(s.y) || 0 })) : []
-    });
+    const player = state.players.get(payload.id) || { id: payload.id };
+    player.pseudo = payload.pseudo;
+    player.avatar = normalizeAvatarIndex(payload.avatar);
+    player.colorIndex = normalizeColorIndex(payload.colorIndex);
+    player.color = payload.color || colorForPseudo(payload.pseudo);
+    player.x = Number(payload.x) || 0;
+    player.y = Number(payload.y) || 0;
+    player.direction = String(payload.direction || "right");
+    player.score = Math.max(0, Number(payload.score) || 0);
+    player.isTyping = Boolean(payload.isTyping);
+    player.segments = Array.isArray(payload.segments) ? payload.segments.map((s) => ({ x: Number(s.x) || 0, y: Number(s.y) || 0 })) : [];
+    state.players.set(payload.id, player);
+    if (payload.id === state.myId && state.input.pendingDirection === player.direction) {
+      state.input.pendingDirection = null;
+      state.input.pendingUntil = 0;
+    }
   }
   function updatePlayersFromPayload(playersPayload = []) {
-    state.players = /* @__PURE__ */ new Map();
-    for (const p of playersPayload) applyPlayerPayload(p);
+    const seenIds = /* @__PURE__ */ new Set();
+    for (const p of playersPayload) {
+      applyPlayerPayload(p);
+      seenIds.add(p.id);
+    }
+    for (const id of state.players.keys()) {
+      if (!seenIds.has(id)) {
+        state.players.delete(id);
+      }
+    }
   }
   function parseApples(payload) {
     const raw = Array.isArray(payload.apples) ? payload.apples : payload.apple ? [payload.apple] : [];
@@ -1178,7 +1192,7 @@
       }
     }
   }
-  function drawSnake(ctx, player, now) {
+  function drawSnake(ctx, player, now, directionOverride = null) {
     const baseColor = colorForPlayer(player);
     for (let i = 1; i < player.segments.length; i++) {
       const s = player.segments[i];
@@ -1188,13 +1202,14 @@
     const head = player.segments[0] || { x: player.x, y: player.y };
     const hpx = head.x * TILE_SIZE, hpy = head.y * TILE_SIZE;
     const headSheet = sprites[normalizeAvatarIndex(player.avatar)];
+    const renderDirection = String(directionOverride || player.direction || "right");
     const rowByDir = { down: 0, right: 1, left: 2, up: 3 };
     const headCol = Math.floor(now / ANIM_IDLE_MS) % ANIMAL_COLS;
     if (!drawAvatarFrame({
       ctx,
       image: headSheet,
       frameCol: headCol,
-      frameRow: rowByDir[player.direction] ?? 0,
+      frameRow: rowByDir[renderDirection] ?? 0,
       frameSize: ANIMAL_FRAME,
       dx: hpx,
       dy: hpy,
@@ -1215,9 +1230,25 @@
       isTyping: Boolean(player.isTyping)
     };
   }
-  function updateLeaderboard() {
+  function updateLeaderboard(force = false) {
     if (!leaderboardListEl || !leaderboardDockEl) return;
+    const now = Date.now();
+    if (!force && now - state.ui.lastLeaderboardUpdateAt < LEADERBOARD_UPDATE_INTERVAL_MS) {
+      return;
+    }
+    state.ui.lastLeaderboardUpdateAt = now;
     const rows = Array.from(state.players.values()).sort((a, b) => b.score !== a.score ? b.score - a.score : a.pseudo.localeCompare(b.pseudo, "fr"));
+    const myRank = rows.findIndex((r) => r.id === state.myId) + 1;
+    const topScore = rows.length > 0 ? rows[0].score : 0;
+    const me = state.players.get(state.myId);
+    const myScore = Math.max(0, Number(me?.score) || 0);
+    const listSignature = rows.slice(0, 10).map((player) => `${player.id}:${player.score}`).join("|");
+    const statusSignature = `${myRank}|${topScore}|${myScore}|${rows.length}`;
+    if (!force && listSignature === state.ui.leaderboardListSignature && statusSignature === state.ui.leaderboardStatusSignature) {
+      return;
+    }
+    state.ui.leaderboardListSignature = listSignature;
+    state.ui.leaderboardStatusSignature = statusSignature;
     leaderboardListEl.innerHTML = "";
     rows.slice(0, 10).forEach((player, i) => {
       const li = document.createElement("li");
@@ -1225,10 +1256,6 @@
       li.innerHTML = `<strong style="color:${colorForPlayer(player)};">${i + 1}. ${player.pseudo}${isMe ? " (toi)" : ""}</strong> - ${player.score}`;
       leaderboardListEl.appendChild(li);
     });
-    const myRank = rows.findIndex((r) => r.id === state.myId) + 1;
-    const topScore = rows.length > 0 ? rows[0].score : 0;
-    const me = state.players.get(state.myId);
-    const myScore = Math.max(0, Number(me?.score) || 0);
     leaderboardDockEl.classList.toggle("hidden-behind", myRank > 1 && myScore < topScore);
     leaderboardStatusEl.textContent = myRank <= 0 ? "En attente" : myRank === 1 ? "En tete" : `Derriere (#${myRank})`;
   }
@@ -1263,6 +1290,8 @@
       state.map.totalCells = Number(payload.map?.totalCells) || state.map.width * state.map.height;
       state.map.tickMs = Number(payload.map?.tickMs) || 180;
       state.map.appleCount = Number(payload.map?.appleCount) || 1;
+      state.input.pendingDirection = null;
+      state.input.pendingUntil = 0;
       state.apples = parseApples(payload);
       updatePlayersFromPayload(payload.players || []);
       game.chatModule.setMessages(payload.chatMessages || []);
@@ -1273,10 +1302,15 @@
       game.hudModule.show();
       leaderboardDockEl.classList.remove("hidden");
       game.centerCameraOnMe(true);
+      updateLeaderboard(true);
     },
-    onPlayerJoined: applyPlayerPayload,
-    onPlayerLeft: (payload) => {
+    onPlayerJoined(payload) {
+      applyPlayerPayload(payload);
+      updateLeaderboard(true);
+    },
+    onPlayerLeft(payload) {
       state.players.delete(payload.id);
+      updateLeaderboard(true);
     },
     onJoinError() {
       leaderboardDockEl.classList.add("hidden");
@@ -1308,26 +1342,47 @@
       });
       drawApples(ctx);
       const labels = [];
+      if (state.input.pendingDirection && now > state.input.pendingUntil) {
+        state.input.pendingDirection = null;
+        state.input.pendingUntil = 0;
+      }
       for (const player of state.players.values()) {
         if (player.segments.length === 0) continue;
-        labels.push(drawSnake(ctx, player, now));
+        let renderDirection = player.direction;
+        if (player.id === state.myId && state.input.pendingDirection) {
+          renderDirection = state.input.pendingDirection;
+        }
+        labels.push(drawSnake(ctx, player, now, renderDirection));
       }
       drawPlayerLabels(ctx, labels);
     },
     onUpdateHud() {
-      const elapsed = state.startTime ? Date.now() - state.startTime : 0;
-      const me = state.players.get(state.myId);
-      game.hudModule.setText(hudPlayersEl, `${state.players.size} joueurs`);
-      game.hudModule.setText(hudScoreEl, `Score: ${Math.max(0, Number(me?.score) || 0)}`);
-      game.hudModule.setText(hudTimeEl, msToClock(elapsed));
-      updateLeaderboard();
+      const now = Date.now();
+      if (now - state.ui.lastHudUpdateAt >= HUD_UPDATE_INTERVAL_MS) {
+        const elapsed = state.startTime ? now - state.startTime : 0;
+        const me = state.players.get(state.myId);
+        game.hudModule.setText(hudPlayersEl, `${state.players.size} joueurs`);
+        game.hudModule.setText(hudScoreEl, `Score: ${Math.max(0, Number(me?.score) || 0)}`);
+        game.hudModule.setText(hudTimeEl, msToClock(elapsed));
+        state.ui.lastHudUpdateAt = now;
+      }
+      updateLeaderboard(false);
     },
     onKeydown(event) {
       const dir = DIRECTION_BY_KEY[event.code];
       if (!dir) return false;
       event.preventDefault();
       if (event.repeat) return true;
-      if (state.phase === "playing") game.socket.emit(import_events.SNAKE_EVENTS.turn, { direction: dir });
+      if (state.phase === "playing") {
+        const me = state.players.get(state.myId);
+        const currentDirection = String(state.input.pendingDirection || me?.direction || "right");
+        if (dir === currentDirection) return true;
+        if (OPPOSITE_DIRECTION[currentDirection] === dir) return true;
+        const tickMs = Math.max(90, Number(state.map.tickMs) || 180);
+        state.input.pendingDirection = dir;
+        state.input.pendingUntil = Date.now() + Math.max(180, Math.round(tickMs * 1.5));
+        game.socket.emit(import_events.SNAKE_EVENTS.turn, { direction: dir });
+      }
       return true;
     },
     extraSocketSetup(socket) {
@@ -1342,6 +1397,8 @@
         state.players = /* @__PURE__ */ new Map();
         state.apples = [];
         state.chat.typingSent = false;
+        state.input.pendingDirection = null;
+        state.input.pendingUntil = 0;
         game.chatModule.setOpen(false, false);
         game.els.lobby.classList.remove("hidden");
         game.els.reconnect.classList.add("hidden");
@@ -1350,6 +1407,7 @@
         game.els.joinError.textContent = "";
         if (state.myPseudo) game.els.pseudoInput.value = state.myPseudo;
         setPreviousScore(Number(payload.score));
+        updateLeaderboard(true);
       });
     },
     onInit() {

@@ -4,7 +4,7 @@ const GRID_W = 70;
 const GRID_H = 70;
 const TOTAL_CELLS = GRID_W * GRID_H;
 const MAX_PLAYERS = 30;
-const TICK_MS = 180;
+const TICK_MS = Math.max(90, Number(process.env.SNAKE_TICK_MS) || 150);
 const START_LENGTH = 4;
 const APPLE_COUNT = 10;
 

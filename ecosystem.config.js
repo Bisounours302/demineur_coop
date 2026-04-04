@@ -10,6 +10,7 @@ module.exports = {
       env: {
         NODE_ENV: 'production',
         PORT: 3000,
+        SNAKE_TICK_MS: 130,
       },
     },
   ],

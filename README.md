@@ -1,152 +1,110 @@
-# Demineur cooperatif en ligne (V1)
+# Demineur cooperatif en ligne
 
 ## Prerequis
 
 - Node.js 18+
 - npm
-- Nginx (deja installe sur le VPS)
+- Nginx (prod)
 
 ## Lancer en local
 
 ```bash
-# 1. Aller dans le dossier projet
-cd /path/to/project
-
-# 2. Installer les dependances
+# 1. Installer les dependances
 npm install
 
-# 3. Generer les bundles client (esbuild)
+# 2. Build client (esbuild)
 npm run build
 
-# 4. Tester le generateur (doit afficher 18 tests passes)
-node test.js
+# 3. Tests
+npm test
 
-# 5. Lancer en developpement (port 3000)
+# 4. Dev (build + serveur)
 npm run dev
 
-# 6. En production — demarrer avec PM2
-npm install -g pm2
-pm2 start ecosystem.config.js
-pm2 save
-pm2 startup   # pour redemarrage automatique au boot
-
-# 7. Configurer Nginx (voir nginx.conf.example)
-# Ajouter le bloc location dans /etc/nginx/sites-available/ton-domaine
-sudo nginx -t
-sudo systemctl reload nginx
+# 5. Demarrage simple
+npm start
 ```
 
-## Architecture modulaire
+## Architecture actuelle
 
-Base serveur (reutilisable pour d autres jeux):
+### Serveur
 
-- `server/core/sharedConstants.js`: constantes communes (couleurs, avatars, chat)
-- `server/core/sharedUtils.js`: helpers communs (normalisation, hash, couleurs)
-- `server/core/createSessionCore.js`: noyau temps reel (joueurs, deplacement, chat)
+- `server/core/sharedConstants.js`: constantes communes (avatars, couleurs, chat)
+- `server/core/sharedUtils.js`: utilitaires communs (normalisation, hash)
+- `server/core/createSessionCore.js`: noyau realtime commun
+- `server/games/minesweeperSession.js`: logique Demineur
+- `server/games/paintSession.js`: logique Paint
+- `server/games/snakeSession.js`: logique Snake
+- `server/socket/registerMinesSocketHandlers.js`: actions Demineur
+- `server/socket/registerPaintSocketHandlers.js`: actions Paint
+- `server/socket/registerSnakeSocketHandlers.js`: actions Snake
+- `shared/events.js`: source unique des noms d evenements Socket.io
+- `server.js`: orchestration Express + Socket.io + lobbies multi-modes
 
-Modules de jeux (separes):
+### Client
 
-- `server/games/minesweeperSession.js`: regles et etat du demineur
-- `server/games/paintSession.js`: regles et etat du paint geant
-- `server/games/snakeSession.js`: regles et etat du snake geant
-- `server/games/skeletonSession.js`: squelette de session pour demarrer un 3e mode
+- `src/client/core/shared.js`: utilitaires front communs
+- `src/client/modules/bootstrap/createModeBootstrap.js`: bootstrap client commun par mode
+- `src/client/modules/chat/createChatModule.js`: chat commun
+- `src/client/modules/lobby/createIdentityModule.js`: lobby/avatar/couleur
+- `src/client/modules/hud/createHudModule.js`: HUD commun
+- `src/client/modules/network/registerCommonSocketLifecycle.js`: lifecycle socket commun
+- `src/client/modules/camera/followCamera.js`: helpers camera
+- `src/client/modules/input/holdMove.js`: hold-move clavier
+- `src/client/modules/tiles/drawCheckerTiles.js`: grille damier
+- `src/client/modules/characters/drawAvatarFrame.js`: rendu sprite avatar
+- `src/client/modules/player/spriteUtils.js`: direction + frames sprite
+- `src/client/modules/player/drawLabels.js`: labels joueurs
+- `src/client/modes/mines/index.js`: mode Demineur
+- `src/client/modes/paint/index.js`: mode Paint
+- `src/client/modes/snake/index.js`: mode Snake
+- `scripts/build-client.js`: generation des bundles client
 
-Points d entree compatibilite:
+### Pages et bundles publics
 
-- `gameSession.js`: wrapper vers le module demineur
-- `paintSession.js`: wrapper vers le module paint
-- `snakeSession.js`: wrapper vers le module snake
-- `server/socket/events.js`: conventions de noms d evenements Socket.io
-- `server/socket/registerMinesSocketHandlers.js`: handlers Socket.io specifiques demineur
-- `server/socket/registerPaintSocketHandlers.js`: handlers Socket.io specifiques paint
-- `server/socket/registerSnakeSocketHandlers.js`: handlers Socket.io specifiques snake
-- `server.js`: orchestration Express + Socket.io + lobbies par mode
+- `public/index.html` + `public/client.js`: Demineur
+- `public/paint.html` + `public/paint-client.js`: Paint
+- `public/snake.html` + `public/snake-client.js`: Snake
+- `public/style.css`: styles partages
 
-Client modulaire + build:
+## Evenements Socket.io
 
-- `src/client/core/shared.js`: utilitaires front communs (couleurs, avatars, conversion, clavier)
-- `src/client/core/events.js`: noms d evenements Socket.io partages
-- `src/client/modules/chat/createChatModule.js`: module chat reutilisable (messages, typing, ouverture/fermeture)
-- `src/client/modules/lobby/createIdentityModule.js`: module lobby reutilisable (avatar, couleur, previews)
-- `src/client/modules/hud/createHudModule.js`: helpers header/HUD reutilisables
-- `src/client/modules/tiles/drawCheckerTiles.js`: rendu de grille/tuiles damier reutilisable
-- `src/client/modules/characters/drawAvatarFrame.js`: rendu sprite personnage reutilisable
-- `src/client/modules/network/registerCommonSocketLifecycle.js`: branchement socket commun (join/state/players/chat)
-- `src/client/modules/camera/followCamera.js`: utilitaires camera communs (viewport/cible/follow/clamp)
-- `src/client/modules/input/holdMove.js`: gestion commune des touches maintenues (hold to move)
-- `src/client/modes/mines/index.js`: entree client demineur
-- `src/client/modes/paint/index.js`: entree client paint
-- `src/client/modes/snake/index.js`: entree client snake
-- `src/client/modes/skeleton/index.js`: entree client squelette
-- `scripts/build-client.js`: bundling esbuild vers `public/*.js`
+Les evenements sont prefixes par mode:
 
-Clients de jeux (separes):
+- `mines:*`
+- `paint:*`
+- `snake:*`
 
-- `public/client.js`: bundle client demineur genere
-- `public/paint-client.js`: bundle client paint genere
-- `public/snake-client.js`: bundle client snake genere
-- `public/skeleton-client.js`: bundle client squelette genere
-- `public/index.html`, `public/paint.html` et `public/snake.html`: pages dediees
-- `public/skeleton.html`: page squelette de reference
-- `public/style.css`: style partage HUD, chat, overlays, palette
-
-Convention evenements Socket.io:
-
-- Tous les evenements sont prefixes par mode (`mines:*`, `paint:*`, `snake:*`, `skeleton:*`)
-- Exemples: `mines:join`, `mines:cell:reveal`, `paint:pixel:place`, `snake:turn`
-
-## Ajouter un nouveau jeu
-
-Le plus simple est de partir du squelette deja inclus:
-
-1. Dupliquer `server/games/skeletonSession.js` vers `server/games/<tonJeu>Session.js`.
-2. Dupliquer `public/skeleton.html` et `public/skeleton-client.js` avec tes noms (`<tonJeu>.html`, `<tonJeu>-client.js`).
-3. Dans `server.js`, ajouter l import du nouveau module puis une entree dans `MODE_RUNTIME`:
-
-```js
-newMode: {
-	defaultLobbyId: 'new-global',
-	lobbies: new Map(),
-	createSession: () => createNewModeSession(),
-	onEmptyLobby: null,
-	events: {
-		join: 'new:join',
-		joinError: 'new:error:join',
-		state: 'new:state',
-		playerJoined: 'new:player:joined',
-		playerLeft: 'new:player:left',
-		move: 'new:move',
-		moved: 'new:player:moved',
-		typingIn: 'new:chat:typing',
-		typingOut: 'new:chat:typing',
-		chatIn: 'new:chat:send',
-		chatOut: 'new:chat:message',
-	},
-}
-```
-
-4. Ajouter les actions specifiques du mode dans un module dedie de `server/socket/` (comme `registerPaintSocketHandlers.js`).
-5. Exposer la page avec une route Express (`app.get('/<tonJeu>', ...)`) et ajouter les boutons de navigation entre modes.
-6. Ajouter un client mode dans `src/client/modes/<tonJeu>/index.js`, puis inclure ce bundle dans `scripts/build-client.js`.
+Exemples: `mines:join`, `paint:pixel:place`, `snake:turn`.
 
 ## Notes gameplay
 
-- Une seule partie globale en memoire
-- Maximum 10 joueurs connectes
-- 10 explosions -> defaite
-- Toutes les cases non-bombe revelees -> victoire
-- Ecran de stats 60 secondes puis nouvelle partie automatique
-- Mode paint: sauvegarde auto toutes les 5 minutes uniquement si la carte a change
-- Sauvegardes paint: `data/paint/<lobbyId>.json` (restaurees automatiquement au demarrage)
-- Mode snake: deplacement automatique, changement de direction aux fleches, collision queue = mort + retour lobby
+- Demineur: 10 explosions -> defaite, reveal total -> victoire, stats puis nouvelle manche auto
+- Paint: sauvegarde auto periodique si carte modifiee dans `data/paint/<lobbyId>.json`
+- Snake: deplacement auto, rotation aux fleches, collision -> mort et retour lobby
 
-## Securite reseau
+## Configuration reseau
 
-- Le CORS Socket.io est filtre par liste d origines autorisees (plus de `origin: *`).
-- Variable optionnelle: `ALLOWED_ORIGINS` (CSV), exemple:
-	`ALLOWED_ORIGINS=https://demineur.everbloom.fr,https://paint.everbloom.fr,https://snake.everbloom.fr`
+- CORS Socket.io filtre par origines autorisees
+- Variable optionnelle: `ALLOWED_ORIGINS` (CSV)
 
-## Sous-domaines
+Exemple:
 
-- `paint.everbloom.fr`: script d aide `setup-paint.sh`
-- `snake.everbloom.fr`: script d aide `setup-snake.sh`
+`ALLOWED_ORIGINS=https://demineur.everbloom.fr,https://paint.everbloom.fr,https://snake.everbloom.fr`
+
+## Configuration Snake (latence)
+
+- `SNAKE_TICK_MS` controle le tick serveur Snake (ms)
+- Valeur plus basse = ressenti plus reactif mais charge un peu plus elevee
+- Recommande en prod: `130`
+
+Le `ecosystem.config.js` inclut deja `SNAKE_TICK_MS: 130`.
+
+## Production (PM2)
+
+```bash
+npm install -g pm2
+pm2 start ecosystem.config.js
+pm2 save
+pm2 startup
+```

@@ -52,24 +52,8 @@ const SNAKE_EVENTS = {
   playerDied: 'snake:player:died',
 };
 
-const SKELETON_EVENTS = {
-  join: 'skeleton:join',
-  joinError: 'skeleton:error:join',
-  state: 'skeleton:state',
-  playerJoined: 'skeleton:player:joined',
-  playerLeft: 'skeleton:player:left',
-  move: 'skeleton:move',
-  playerMoved: 'skeleton:player:moved',
-  chatTyping: 'skeleton:chat:typing',
-  chatSend: 'skeleton:chat:send',
-  chatMessage: 'skeleton:chat:message',
-  action: 'skeleton:action',
-  actionApplied: 'skeleton:action:applied',
-};
-
 module.exports = {
   MINES_EVENTS,
   PAINT_EVENTS,
   SNAKE_EVENTS,
-  SKELETON_EVENTS,
 };
